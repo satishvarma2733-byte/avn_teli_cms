@@ -9,6 +9,8 @@ import { forbidden, invalid, notFound } from '../shared/errors';
 import { signedDownloadPath } from '../storage/files';
 import type { ExportParams } from './export.runner';
 
+const EXPORT_NOT_STARTED = 'The export could not be started. Try again.';
+
 /**
  * Background exports (Phase 6): the request only records the job; the worker writes the file.
  * Scope follows the workspace: counselors and telecallers export only their own leads, and
@@ -57,7 +59,29 @@ export async function requestExport(ctx: Ctx, dto: ExportCreateDTO) {
     });
     return j;
   });
-  await enqueue('export.run', { tenantId: ctx.tenantId, jobId: job.id });
+  try {
+    await enqueue('export.run', { tenantId: ctx.tenantId, jobId: job.id });
+  } catch (err) {
+    // The queue never took the job (Redis unreachable): no worker will claim it, and the stuck-jobs
+    // sweep leaves QUEUED alone, so it would read "Preparing" for ever. Fail it, plainly, so the
+    // person can ask again. Only while it is still QUEUED: a worker that did get the job keeps it.
+    await withTenant(ctx.tenantId, (db) =>
+      db.exportJob.updateMany({
+        where: { id: job.id, status: 'QUEUED' },
+        data: { status: 'FAILED', result: { error: EXPORT_NOT_STARTED }, finishedAt: new Date() },
+      }),
+    ).catch((undoErr: unknown) =>
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'export could not be failed after the queue refused it',
+          jobId: job.id,
+          error: undoErr instanceof Error ? undoErr.message : String(undoErr),
+        }),
+      ),
+    );
+    throw err;
+  }
   return getExport(ctx, job.id);
 }
 

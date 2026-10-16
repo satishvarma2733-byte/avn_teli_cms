@@ -53,7 +53,8 @@ The import list (`/app/imports`) shows every import with its status and result.
 `DRAFT` (needs columns) → `VALIDATING` (check) → `VALIDATED` (ready to review) → `QUEUED` →
 `RUNNING` → `DONE`. `FAILED` can happen during a check or a run, including a run cut off by a
 crash (§7); **Check the file again** and **Change columns** run the check again. `CANCELED` is
-possible only before the run starts, or after a failure.
+possible only before the run starts, or after a failure. If the queue refuses the job when the
+import is started, it goes back from `QUEUED` to `VALIDATED` (§7).
 
 ---
 
@@ -187,6 +188,28 @@ job, and BullMQ handing it to another worker changes nothing: the job has alread
 - Each download link is signed for you and lasts 15 minutes. The page asks for a fresh link
   when you click, so an open page keeps working.
 
+### A job the queue refused
+
+Starting an import or asking for an export first records the job as QUEUED, then hands it to the
+queue. If the queue does not take it, no worker ever hears of the job, and the stuck-jobs sweep
+leaves QUEUED alone (a job may wait for a worker). So the request undoes its own recording before
+it reports the error:
+
+- **Not answering counts as refusing.** With Redis unreachable BullMQ never gives up by itself
+  (it keeps waiting for the connection), so the request would hang. `enqueue` waits at most 10
+  seconds (`ENQUEUE_TIMEOUT_MS`) and then throws; an error from Redis throws as soon as it arrives.
+- **Import.** QUEUED → VALIDATED, with the check results kept: the screen is back at **Start
+  import**, and the person can start again, change columns or cancel.
+- **Export.** QUEUED → FAILED, with "The export could not be started. Try again." in the exports
+  list; the person requests it again.
+- **Only while QUEUED.** If a worker did take the job (the queue accepted it but the answer was
+  lost), the job is left alone and runs; the person still sees the error.
+- The request still fails, with the usual "Something went wrong on our side" message and a
+  reference for the log. The check step is not covered here: a check that could not be queued stays
+  VALIDATING with its heartbeat, and the sweep fails it after 10 minutes like a cut-off one.
+- If the queue answers after the request gave up, the stray BullMQ job finds the row no longer
+  QUEUED and does nothing.
+
 ---
 
 ## 8. Exports
@@ -235,7 +258,8 @@ Export from **Leads** or **Web leads** with the **Export** button, or list all y
   `export.requested`, `export.run`, `export.downloaded`, `file.downloaded`.
 - **Background jobs** use the `avn-jobs` BullMQ queue (two at a time, lock 5 minutes). Every
   request gets its own BullMQ job id (BullMQ refuses ids containing `:`, and ignores an id it has
-  seen before, which would silently drop an import that is checked or run a second time). Without
+  seen before, which would silently drop an import that is checked or run a second time). A request
+  waits at most 10 seconds for the queue (§7, "A job the queue refused"). Without
   Redis (`REDIS_URL` empty) jobs run in the web process, which is only suitable for local
   development: a restart of that process cuts a job off, and only `sweep:once` recovers it.
 
@@ -272,6 +296,7 @@ when the export is requested, with field messages.
 | Integration | `tests/integration/exports.int.test.ts` (7) | Same rows as the screen, formula neutralising, role columns, XLSX and PDF output, personal and expiring links, web-leads admin only, re-check when the job runs, bad filters refused |
 | Integration | `tests/integration/job-recovery.int.test.ts` (6) | Only claimed jobs silent for 10 minutes are failed (queued, busy and finished ones are not); a re-delivered job does not run again; the worker sweep covers every workspace; **a run failed under the real runner stops without overwriting that, and starting over finishes the file with every student exactly once** (skip mode, and update mode after a run cut off at the end) |
 | Integration (real Redis) | `tests/integration/bullmq-jobs.int.test.ts` (2) | The web side enqueues on `avn-jobs`, the worker's own consumer (`apps/worker/src/workers.ts`) runs the check and the import and an export through `processJob`, and BullMQ records the three jobs as completed; an import checked a second time is processed again. Needs the docker Redis (`pnpm stack:up`); uses Redis database 15 (`TEST_REDIS_URL`) |
+| Integration | `tests/integration/enqueue-failure.int.test.ts` (6) | A job the queue refused (§7): an import goes back to VALIDATED and can be started again or canceled; an export fails with the plain message and can be requested again; a job a worker already claimed is left alone; with Redis unreachable (a closed port, no docker needed) the request gives up instead of hanging and does the same |
 | Migration guards | `packages/db/src/migrations.test.ts` (3) | Generated migrations never drop the protected indexes; row-level security on every tenant table |
 | End-to-end | `tests/e2e/specs/import-export.spec.ts` (5) | Admin wizard from upload to students in the workspace, with accessibility checks; the import list; **an import cut off mid-run, failed by the worker's `sweep:once`, shown as stopped, started over, and finished without a duplicate**; export download and exports list; telecaller export without contact columns and with no import access |
 
@@ -291,6 +316,4 @@ checks and the problem report).
 - A stopped import is not resumed from where it stopped: the person starts over (§7). Resuming
   would need the progress saved in the same transaction as each batch (today it is saved just
   after), so that no batch could be repeated.
-- A job whose request to the queue failed (Redis unreachable at that moment) stays QUEUED: the
-  person sees an error, but the job is not retried by the sweep.
 - Storage is the database until the Phase 7 object-storage decision.

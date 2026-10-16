@@ -18,7 +18,7 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | 3 | Assignments + follow-up engine + timeline | **Verified** | follow-up integration suite (queue, dispositions, escalation sweep); e2e log-call flow |
 | 4 | Dashboards & reports | **Verified** (one gap) | reports reconciliation suite; e2e. Gap: no Redis caching / materialisation yet (not needed at current volumes) |
 | 5 | Web leads + LeadXP-compatible `/api/webleads` | **Verified locally** | 12 contract tests (both eWings payload shapes), HTTP smoke script 7/7, e2e intake → convert |
-| 6 | Import / export | **Verified** | Migrations `import_export` (`stored_files`, job states, RLS) and `job_heartbeat`; core `imports/`, `exports/`, `storage/`, `jobs/` (queue, runner, recovery); import wizard (`/app/imports`) with a stopped-import screen and start over, Export dialogs on Leads and Web leads, `/app/exports`; API routes; worker queues `avn-jobs` and `avn-system` (stuck-jobs sweep). Tests: import unit 10/10; imports int 7/7; 50k-row int 1/1 (50,100 rows: 3.3 s check, 93 s total); exports int 7/7; recovery int 6/6; **queue int 2/2 against real Redis**; migration guards 3/3; e2e 5/5. See `IMPORT_EXPORT.md` |
+| 6 | Import / export | **Verified** | Migrations `import_export` (`stored_files`, job states, RLS) and `job_heartbeat`; core `imports/`, `exports/`, `storage/`, `jobs/` (queue, runner, recovery); import wizard (`/app/imports`) with a stopped-import screen and start over, Export dialogs on Leads and Web leads, `/app/exports`; API routes; worker queues `avn-jobs` and `avn-system` (stuck-jobs sweep). Tests: import unit 10/10; imports int 7/7; 50k-row int 1/1 (50,100 rows: 3.3 s check, 93 s total); exports int 7/7; recovery int 6/6; **queue int 2/2 against real Redis**; queue-refused-a-job int 6/6; migration guards 3/3; e2e 5/5. See `IMPORT_EXPORT.md` |
 | 7 | Documents vault | Not started (tables exist) | |
 | 8 | Automation rules | Not started (tables exist). Built-in: round-robin assignment, overdue escalation | |
 | 9 | Security hardening | Partly | See security section |
@@ -52,7 +52,7 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
 | Unit | `pnpm test:unit` | **182 passed** (RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping) |
-| Integration (real Postgres, RLS; the queue test also needs the docker Redis) | `pnpm test:integration` | **80 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, imports/exports through BullMQ on real Redis) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis) | `pnpm test:integration` | **86 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, imports/exports through BullMQ on real Redis, a job the queue refused) |
 | End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **20 passed** (sign-in, leads, RBAC, users, web-leads intake, import wizard incl. a cut-off import and start over, exports) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
@@ -96,7 +96,11 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
   with `REDIS_URL` set no import or export could start; the in-process fallback used by dev, the
   tests and e2e had hidden it. Job ids are now unique per request, which also lets a re-queued
   import ("check again", start over) run: with a repeated id BullMQ silently drops the job.
-- Imports/exports: a job whose request to the queue failed (Redis unreachable at that moment) stays QUEUED and is not retried by the stuck-jobs sweep. See `IMPORT_EXPORT.md` §12.
+- **Found and fixed (2026-10-16):** a job whose request to the queue failed stayed QUEUED for ever
+  (the stuck-jobs sweep ignores QUEUED). It also turned out that with Redis unreachable `enqueue`
+  never failed at all: BullMQ keeps waiting for the connection, so the request hung. `enqueue` now
+  gives up after 10 s; the import service then puts the import back to VALIDATED and the export
+  service fails the export ("The export could not be started. Try again."). See `IMPORT_EXPORT.md` §7.
 
 ## External dependencies / not in scope by decision
 

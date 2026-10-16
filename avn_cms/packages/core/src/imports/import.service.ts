@@ -202,7 +202,26 @@ export async function startRun(ctx: Ctx, id: string, duplicateMode: ImportOption
     if (res.count !== 1) throw conflict('This import was already started.');
     await audit(db, ctx, 'import.start', 'import_job', id, undefined, { duplicateMode });
   });
-  await enqueue('import.run', { tenantId: ctx.tenantId, jobId: id });
+  try {
+    await enqueue('import.run', { tenantId: ctx.tenantId, jobId: id });
+  } catch (err) {
+    // The queue never took the job (Redis unreachable): no worker will claim it, and the stuck-jobs
+    // sweep leaves QUEUED alone. Put the import back so it can be started or canceled again. Only
+    // while it is still QUEUED: a worker that did get the job keeps it.
+    await withTenant(ctx.tenantId, (db) =>
+      db.importJob.updateMany({ where: { id, status: 'QUEUED' }, data: { status: 'VALIDATED' } }),
+    ).catch((undoErr: unknown) =>
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'import could not be put back after the queue refused it',
+          jobId: id,
+          error: undoErr instanceof Error ? undoErr.message : String(undoErr),
+        }),
+      ),
+    );
+    throw err;
+  }
   return { id };
 }
 

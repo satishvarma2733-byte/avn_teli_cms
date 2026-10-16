@@ -39,12 +39,21 @@ function queue(): Queue | null {
   return g.__avnQueue;
 }
 
+/**
+ * How long a request waits for the queue to take a job. With Redis unreachable BullMQ never gives
+ * up (it keeps waiting for the connection), so without a limit the request would hang instead of
+ * failing, and its caller could not put the job back.
+ */
+export const ENQUEUE_TIMEOUT_MS = 10_000;
+
 export interface EnqueueOptions {
   /**
    * Run to completion before returning. Defaults to true in tests *without* REDIS_URL (the
    * normal test setup removes it); a test that sets REDIS_URL asks for the real queue.
    */
   inline?: boolean;
+  /** Give up on the queue after this long (default ENQUEUE_TIMEOUT_MS). */
+  timeoutMs?: number;
 }
 
 export async function enqueue(
@@ -56,7 +65,7 @@ export async function enqueue(
   const inline = options.inline ?? (config.NODE_ENV === 'test' && !config.REDIS_URL);
   const q = inline ? null : queue();
   if (q) {
-    await q.add(kind, payload, {
+    const added = q.add(kind, payload, {
       // BullMQ refuses ids containing ":" and silently drops an add whose id still exists (finished
       // jobs are kept for days), so a re-queued import — "check again", start over — needs a new one.
       // Double delivery is harmless anyway: the runners claim the job row (QUEUED → RUNNING).
@@ -65,6 +74,21 @@ export async function enqueue(
       removeOnComplete: { age: 7 * 86_400, count: 1000 },
       removeOnFail: { age: 30 * 86_400 },
     });
+    // If the timeout wins, the add may still finish later (Redis came back). The job row has been
+    // put back by then, so the worker's claim finds nothing to take and the job is a no-op.
+    added.catch(() => undefined);
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('The job queue did not answer in time (is Redis reachable?).')),
+        options.timeoutMs ?? ENQUEUE_TIMEOUT_MS,
+      );
+    });
+    try {
+      await Promise.race([added, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
     return;
   }
   if (!localHandler) throw new Error('No job handler registered');
