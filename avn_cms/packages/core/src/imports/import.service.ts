@@ -169,7 +169,14 @@ export async function startValidation(ctx: Ctx, id: string, options: ImportOptio
     const params: ImportParams = { ...p, options: { ...options, mapping } };
     await db.importJob.updateMany({
       where: { id },
-      data: { status: 'VALIDATING', params: params as unknown as Prisma.InputJsonValue, result: {} },
+      data: {
+        status: 'VALIDATING',
+        params: params as unknown as Prisma.InputJsonValue,
+        // Starting (or starting over): forget the previous attempt, and start the heartbeat clock.
+        result: {},
+        finishedAt: null,
+        heartbeatAt: new Date(),
+      },
     });
     return { id };
   }).then(async (r) => {

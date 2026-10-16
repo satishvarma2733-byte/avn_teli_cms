@@ -6,6 +6,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
 import type { JobPayload } from '../jobs/queue';
+import { JobSupersededError } from '../jobs/recovery';
 import { buildLeadFilter } from '../leads/lead.service';
 import { can, listScope, seesReducedStudentFields } from '../policy/index';
 import { leadListQuerySchema, STAGE_LABEL, webLeadListQuerySchema, type ExportFormat } from '../schemas';
@@ -366,11 +367,27 @@ async function setJob(
   tenantId: string,
   jobId: string,
   data: Prisma.ExportJobUpdateManyMutationInput,
-  status?: 'QUEUED',
+  status?: 'QUEUED' | 'RUNNING',
 ) {
   return withTenant(tenantId, (db) =>
     db.exportJob.updateMany({ where: { id: jobId, ...(status ? { status } : {}) }, data }),
   );
+}
+
+/**
+ * Renews the job's heartbeat before each page of rows is handed on. If recovery failed the job
+ * while we were still working, stop instead of writing a file nobody is waiting for.
+ */
+async function* withHeartbeat(
+  tenantId: string,
+  jobId: string,
+  pages: AsyncGenerator<Row[]>,
+): AsyncGenerator<Row[]> {
+  for await (const page of pages) {
+    const alive = await setJob(tenantId, jobId, { heartbeatAt: new Date() }, 'RUNNING');
+    if (alive.count !== 1) throw new JobSupersededError();
+    yield page;
+  }
 }
 
 async function stillAllowed(db: TenantDb, ctx: Ctx): Promise<boolean> {
@@ -384,7 +401,9 @@ async function stillAllowed(db: TenantDb, ctx: Ctx): Promise<boolean> {
 
 export async function exportRun({ tenantId, jobId }: JobPayload): Promise<void> {
   const started = Date.now();
-  const claimed = await setJob(tenantId, jobId, { status: 'RUNNING' }, 'QUEUED');
+  // A job that is already RUNNING belongs to a worker that may have died: recovery
+  // (jobs/recovery.ts) fails it once its heartbeat goes quiet. This claim never takes it over.
+  const claimed = await setJob(tenantId, jobId, { status: 'RUNNING', heartbeatAt: new Date() }, 'QUEUED');
   if (claimed.count !== 1) return;
   const job = await withTenant(tenantId, (db) => db.exportJob.findFirst({ where: { id: jobId } }));
   const p = job!.params as unknown as ExportParams;
@@ -394,8 +413,9 @@ export async function exportRun({ tenantId, jobId }: JobPayload): Promise<void> 
     role: p.requestedBy.role,
     ...(p.requestedBy.impersonatedBy ? { impersonatedBy: p.requestedBy.impersonatedBy } : {}),
   };
+  // Only while still RUNNING: recovery may have failed this job already.
   const fail = (error: string) =>
-    setJob(tenantId, jobId, { status: 'FAILED', result: { error }, finishedAt: new Date() });
+    setJob(tenantId, jobId, { status: 'FAILED', result: { error }, finishedAt: new Date() }, 'RUNNING');
   try {
     // Permissions are re-checked at run time: a user disabled or demoted since asking gets nothing.
     if (!(await withTenant(tenantId, (db) => stillAllowed(db, ctx))) || !can(ctx, 'export:run'))
@@ -417,7 +437,7 @@ export async function exportRun({ tenantId, jobId }: JobPayload): Promise<void> 
     const cols = p.entity === 'leads' ? leadColumns(ctx.role, timezone) : webLeadColumns(timezone);
     const label = p.entity === 'leads' ? 'leads' : 'web-leads';
     const stamp = fmtDate(timezone)(new Date()).replace(/[: ]/g, '-');
-    const pages = rowsOf(tenantId, ctx, p);
+    const pages = withHeartbeat(tenantId, jobId, rowsOf(tenantId, ctx, p));
     const out =
       p.format === 'csv'
         ? await writeCsv(pages, cols)
@@ -447,8 +467,8 @@ export async function exportRun({ tenantId, jobId }: JobPayload): Promise<void> 
         createdById: ctx.userId,
         expiresAt: new Date(Date.now() + EXPORT_TTL_DAYS * 86_400_000),
       });
-      await db.exportJob.updateMany({
-        where: { id: jobId },
+      const finished = await db.exportJob.updateMany({
+        where: { id: jobId, status: 'RUNNING' },
         data: {
           status: 'DONE',
           fileKey: fileId,
@@ -461,6 +481,8 @@ export async function exportRun({ tenantId, jobId }: JobPayload): Promise<void> 
           },
         },
       });
+      // Rolls back the saved file too.
+      if (finished.count !== 1) throw new JobSupersededError();
       await audit(db, ctx, 'export.run', 'export_job', jobId, undefined, {
         entity: p.entity,
         format: p.format,
@@ -469,6 +491,12 @@ export async function exportRun({ tenantId, jobId }: JobPayload): Promise<void> 
       });
     });
   } catch (err) {
+    if (err instanceof JobSupersededError) {
+      console.error(
+        JSON.stringify({ level: 'warn', msg: 'export stopped: recovery had already failed it', jobId }),
+      );
+      return;
+    }
     console.error(
       JSON.stringify({
         level: 'error',

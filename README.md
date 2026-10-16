@@ -102,7 +102,7 @@ pnpm stack:up                   # Postgres 17 :55450, Redis :16390, Mailpit :511
 pnpm db:migrate
 pnpm db:seed                    # TEST DATA: tenants "demo" and "other", one user per role
 pnpm dev                        # http://localhost:3300
-pnpm dev:worker                 # optional: overdue sweep every 5 minutes (needs Redis)
+pnpm dev:worker                 # needs Redis: runs imports/exports queued while REDIS_URL is set (leave it empty to run them inside pnpm dev) and the sweeps
 ```
 
 Sign in with workspace `demo` and `admin@demo.test` (or `counselor1@demo.test`,
@@ -114,7 +114,7 @@ Quality gates:
 
 ```bash
 pnpm lint && pnpm format:check && pnpm typecheck
-pnpm test                       # unit + integration (uses the avn_cms_test database)
+pnpm test                       # unit + integration (avn_cms_test database; the queue test needs the Redis from stack:up)
 pnpm test:e2e                   # production build + Playwright + axe accessibility checks
 pnpm smoke:webleads --url http://localhost:3300 --tenant demo
 ```

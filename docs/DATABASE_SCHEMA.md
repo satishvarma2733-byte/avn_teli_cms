@@ -196,7 +196,7 @@ Per-student required-doc tracking.
 `id, tenant_id, student_id, doc_type(PASSPORT|MARKS_MEMO|NEET_RESULT|TRANSFER_CERT|PHOTO|ADMISSION_LETTER|VISA|PAYMENT_RECEIPT|OTHER), document_id null → documents, status(MISSING|UPLOADED|VERIFIED|REJECTED), reviewed_by null, note null, updated_at`.
 
 ### `import_jobs` / `export_jobs`
-`id, tenant_id, requested_by, type, status(QUEUED|RUNNING|DONE|FAILED), params jsonb, result jsonb (counts, error_report_key), file_key, created_at, finished_at`. Imports record mapping, dedupe choice, and a downloadable per-row error report.
+`id, tenant_id, requested_by, type, status(DRAFT|VALIDATING|VALIDATED|QUEUED|RUNNING|DONE|FAILED|CANCELED; exports use QUEUED|RUNNING|DONE|FAILED), params jsonb, result jsonb (counts, error_report_key), file_key, created_at, finished_at, heartbeat_at`. Imports record mapping, dedupe choice, and a downloadable per-row error report. `heartbeat_at` is the last sign of life of a claimed job (set when it is claimed, renewed after each batch or page); the worker's stuck-jobs sweep fails a VALIDATING/RUNNING job whose heartbeat is over 10 minutes old (`IMPORT_EXPORT.md` §7).
 
 ---
 

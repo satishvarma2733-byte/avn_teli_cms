@@ -32,6 +32,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
+      bullmq:
+        specifier: 6.3.9
+        version: 6.3.9(ioredis@6.0.0)(pg@8.23.1)
       eslint:
         specifier: ^10.11.0
         version: 10.12.0(jiti@2.7.0)
@@ -41,6 +44,9 @@ importers:
       globals:
         specifier: ^16.0.0
         version: 16.5.0
+      ioredis:
+        specifier: ^6.0.0
+        version: 6.0.0
       next:
         specifier: 16.3.8
         version: 16.3.8(@playwright/test@1.63.0)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

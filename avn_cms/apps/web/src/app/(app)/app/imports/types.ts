@@ -26,6 +26,8 @@ export interface ImportResult {
   failed?: number;
   issuesSample?: ImportIssue[];
   error?: string;
+  /** On a FAILED import: whether it stopped while checking the file or while importing. */
+  failedIn?: 'check' | 'run';
 }
 
 export interface ImportJob {

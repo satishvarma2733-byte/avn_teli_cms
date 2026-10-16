@@ -18,7 +18,7 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | 3 | Assignments + follow-up engine + timeline | **Verified** | follow-up integration suite (queue, dispositions, escalation sweep); e2e log-call flow |
 | 4 | Dashboards & reports | **Verified** (one gap) | reports reconciliation suite; e2e. Gap: no Redis caching / materialisation yet (not needed at current volumes) |
 | 5 | Web leads + LeadXP-compatible `/api/webleads` | **Verified locally** | 12 contract tests (both eWings payload shapes), HTTP smoke script 7/7, e2e intake → convert |
-| 6 | Import / export | **Verified** (gap: a run cut off by a crash is not recovered automatically) | Migration `import_export` (`stored_files`, job states, RLS); core `imports/`, `exports/`, `storage/`, `jobs/`; import wizard (`/app/imports`), Export dialogs on Leads and Web leads, `/app/exports`; API routes; worker queue `avn-jobs`. Tests: import unit 10/10; imports int 7/7; 50k-row int 1/1 (50,100 rows: 3.3 s check, 93 s total); exports int 7/7; migration guards 3/3; e2e 4/4. See `IMPORT_EXPORT.md` |
+| 6 | Import / export | **Verified** | Migrations `import_export` (`stored_files`, job states, RLS) and `job_heartbeat`; core `imports/`, `exports/`, `storage/`, `jobs/` (queue, runner, recovery); import wizard (`/app/imports`) with a stopped-import screen and start over, Export dialogs on Leads and Web leads, `/app/exports`; API routes; worker queues `avn-jobs` and `avn-system` (stuck-jobs sweep). Tests: import unit 10/10; imports int 7/7; 50k-row int 1/1 (50,100 rows: 3.3 s check, 93 s total); exports int 7/7; recovery int 6/6; **queue int 2/2 against real Redis**; migration guards 3/3; e2e 5/5. See `IMPORT_EXPORT.md` |
 | 7 | Documents vault | Not started (tables exist) | |
 | 8 | Automation rules | Not started (tables exist). Built-in: round-robin assignment, overdue escalation | |
 | 9 | Security hardening | Partly | See security section |
@@ -34,7 +34,7 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | Students/leads (create, dedupe, search, filters, views, keyset pagination, stage, potential/HOT, assignment, notes, bulk, soft delete) | Verified | |
 | Follow-ups (queue buckets, schedule, reschedule, disposition logging, suggested stage, next call) | Verified | |
 | Activity timeline, stage history, audit log + viewer | Verified | Append-only enforced by grants |
-| Worker (BullMQ repeatable overdue sweep + escalation notifications) | Verified (logic) | Sweep covered by integration test; the BullMQ loop itself was not run against Redis in a test |
+| Worker (BullMQ: repeatable overdue sweep + escalation notifications, expired-file cleanup, stuck-jobs sweep, `avn-jobs` consumer for imports/exports) | Verified | Sweeps covered by integration tests; the `avn-jobs` queue and the worker's consumer run an import and an export against real Redis (`bullmq-jobs.int.test.ts`). Not covered by a test: the `avn-system` repeat scheduler itself (`upsertJobScheduler`), and a worker process killed mid-run (the cut-off is simulated through the database) |
 | Web leads inbox (status, flags, convert/attach, spam/reject) | Verified | |
 | Intake credentials (create/rotate with 24 h overlap/revoke) | Verified | |
 | Import wizard and export jobs (dry run before any write, duplicate modes, round robin, signed expiring downloads) | Verified | Problem reports; 50k-row exit test; role-limited exports |
@@ -52,12 +52,12 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
 | Unit | `pnpm test:unit` | **182 passed** (RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping) |
-| Integration (real Postgres, RLS) | `pnpm test:integration` | **72 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports) |
-| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **19 passed** (sign-in, leads, RBAC, users, web-leads intake, import wizard, exports) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis) | `pnpm test:integration` | **80 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, imports/exports through BullMQ on real Redis) |
+| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **20 passed** (sign-in, leads, RBAC, users, web-leads intake, import wizard incl. a cut-off import and start over, exports) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
 
-Not run: load test at 100k / 1M leads; WebKit/Firefox e2e; tests against a real staging host.
+Not run: load test at 100k / 1M leads; WebKit/Firefox e2e; tests against a real staging host; a worker process killed mid-run (the cut-off is reproduced through the database and by failing a live run).
 
 ## Security status
 
@@ -91,7 +91,12 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
   go-ahead (`pnpm --filter @avn-cms/db exec prisma migrate reset`, then `pnpm db:seed`).
 - Counselors see an empty Web leads inbox: "routed to them" needs a routing rule (Phase 8).
 - Source ROI shows conversion only: ad spend isn't recorded.
-- Imports: a run cut off by a crash (for example, the worker stops) stays RUNNING; there is no automatic recovery yet. See `IMPORT_EXPORT.md` §7.
+- **Found and fixed (2026-10-16):** the first test of the imports/exports queue against real Redis
+  showed that, before this fix, every `enqueue` onto BullMQ threw (`Custom Id cannot contain :`), so
+  with `REDIS_URL` set no import or export could start; the in-process fallback used by dev, the
+  tests and e2e had hidden it. Job ids are now unique per request, which also lets a re-queued
+  import ("check again", start over) run: with a repeated id BullMQ silently drops the job.
+- Imports/exports: a job whose request to the queue failed (Redis unreachable at that moment) stays QUEUED and is not retried by the stuck-jobs sweep. See `IMPORT_EXPORT.md` §12.
 
 ## External dependencies / not in scope by decision
 
@@ -111,7 +116,7 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
 
 ## Files
 
-Code: `avn_cms/` — 233 TypeScript/TSX/SQL/CSS source files (~22.1k lines, excluding generated code) across
+Code: `avn_cms/` — 238 TypeScript/TSX/SQL/CSS source files (~23.0k lines, excluding generated code) across
 `apps/web`, `apps/worker`, `packages/{config,db,auth,core}`, `tests/`, `scripts/`.
 Docs created: `PROJECT_AUDIT.md`, `REQUIREMENTS.md`, `BUILD_STATUS.md`, `DEPLOYMENT.md`, `IMPORT_EXPORT.md`.
 Docs updated: `README.md`, `ARCHITECTURE.md`, `MODULE_STRUCTURE.md`, `DEVELOPMENT_PHASES.md`,

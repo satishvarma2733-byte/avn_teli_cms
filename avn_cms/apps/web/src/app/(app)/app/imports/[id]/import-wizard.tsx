@@ -15,18 +15,20 @@ import { WORKING_STATUSES, type ImportJob } from '../types';
 import { MappingForm } from './mapping-form';
 import { ReviewPanel } from './review-panel';
 
-/** The screen shown for a job: map columns, check, review, import, or finished. */
-type Stage = 'map' | 'check' | 'review' | 'run' | 'done';
+/** The screen shown for a job: map columns, check, review, import, stopped, or finished. */
+type Stage = 'map' | 'check' | 'review' | 'run' | 'stopped' | 'done';
 
 const STEPS = ['Upload', 'Map columns', 'Check', 'Import'];
 /** 1-based step number; 5 means every step is complete. */
-const CURRENT_STEP: Record<Stage, number> = { map: 2, check: 3, review: 3, run: 4, done: 5 };
+const CURRENT_STEP: Record<Stage, number> = { map: 2, check: 3, review: 3, run: 4, stopped: 4, done: 5 };
 
 function stageOf(job: ImportJob, changing: boolean): Stage {
   switch (job.status) {
     case 'DRAFT':
-    case 'FAILED':
       return 'map';
+    case 'FAILED':
+      // A check that failed goes back to the columns; an import that stopped has its own screen.
+      return job.result.failedIn === 'run' && !changing ? 'stopped' : 'map';
     case 'VALIDATING':
       return 'check';
     case 'VALIDATED':
@@ -78,6 +80,19 @@ export function ImportWizard({ id }: { id: string }) {
   async function cancel() {
     const res = await api(`/api/imports/${id}`, { method: 'DELETE' });
     if (!res.ok) return setError(res.error.message);
+    await refresh();
+  }
+
+  /** Start over after a stopped import: the same columns and options, checked again. */
+  async function checkAgain() {
+    if (!job?.options) return setChanging(true); // no saved columns: choose them again
+    const { mapping, defaultSourceId, roundRobin } = job.options;
+    // Back to the safe choice: students the stopped run already added are matched by mobile number.
+    const res = await api(`/api/imports/${id}/validate`, {
+      body: { mapping, defaultSourceId, duplicateMode: 'skip', roundRobin },
+    });
+    if (!res.ok) return setError(res.error.message);
+    setError(null);
     await refresh();
   }
 
@@ -135,6 +150,14 @@ export function ImportWizard({ id }: { id: string }) {
         />
       )}
       {stage === 'run' && <RunProgress job={job} />}
+      {stage === 'stopped' && (
+        <RunStopped
+          job={job}
+          onCheckAgain={checkAgain}
+          onChange={() => setChanging(true)}
+          onCancel={cancel}
+        />
+      )}
       {stage === 'done' && <Finished job={job} onDownloadReport={() => void downloadReport()} />}
     </div>
   );
@@ -209,13 +232,96 @@ function RunProgress({ job }: { job: ImportJob }) {
   );
 }
 
+/** An import that stopped part-way (the server restarted, or a failure): what was saved and how to start over. */
+function RunStopped({
+  job,
+  onCheckAgain,
+  onChange,
+  onCancel,
+}: {
+  job: ImportJob;
+  onCheckAgain: () => Promise<void>;
+  onChange: () => void;
+  onCancel: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const r = job.result;
+  const processed = r.processed ?? 0;
+  const total = r.total ?? job.rowCount;
+
+  async function checkAgain() {
+    setBusy(true);
+    await onCheckAgain();
+    setBusy(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      <Alert tone="danger" title="The import didn’t finish">
+        {r.error ?? 'It stopped before it was done.'}
+      </Alert>
+      <Card>
+        <CardHeader
+          title="What was saved before it stopped"
+          description={
+            processed > 0
+              ? `At least ${processed.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')} rows were processed. Students already added stay in aVn CMS.`
+              : 'Some students may have been added. They stay in aVn CMS.'
+          }
+        />
+        {processed > 0 && (
+          <dl
+            aria-label="Import summary before it stopped"
+            className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-5"
+          >
+            <Figure label="Created" value={r.created} />
+            <Figure label="Updated" value={r.updated} />
+            <Figure label="Merged" value={r.merged} />
+            <Figure label="Skipped" value={r.skipped} />
+            <Figure label="Failed" value={r.failed} />
+          </dl>
+        )}
+      </Card>
+      <Card>
+        <CardHeader
+          title="Start over"
+          description="Check the file again, then import it once more. Students already added are found by their mobile number, so nobody is added twice."
+        />
+        <p className="p-5 text-sm text-muted-foreground">
+          Keep <span className="font-medium text-foreground">Skip them</span> selected to leave those students
+          as they are.
+        </p>
+      </Card>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={onChange}>
+            Change columns
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel import
+          </Button>
+        </div>
+        <Button loading={busy} onClick={() => void checkAgain()}>
+          Check the file again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Finished({ job, onDownloadReport }: { job: ImportJob; onDownloadReport: () => void }) {
   if (job.status === 'CANCELED') {
+    // An import canceled after it stopped part-way still left students behind.
+    const added = job.result.created ?? 0;
     return (
       <Card>
         <CardHeader
           title="Import canceled"
-          description="Nothing was saved."
+          description={
+            added > 0
+              ? `${added.toLocaleString('en-IN')} new students had already been added before it stopped.`
+              : 'Nothing was saved.'
+          }
           actions={
             <Link href="/app/imports/new" className={buttonVariants({ variant: 'secondary' })}>
               New import

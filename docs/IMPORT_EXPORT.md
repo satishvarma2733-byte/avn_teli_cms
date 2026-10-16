@@ -51,8 +51,9 @@ The import list (`/app/imports`) shows every import with its status and result.
 ### Job states
 
 `DRAFT` (needs columns) → `VALIDATING` (check) → `VALIDATED` (ready to review) → `QUEUED` →
-`RUNNING` → `DONE`. `FAILED` can happen during a check or a run; **Change columns** can run the
-check again. `CANCELED` is possible only before the run starts.
+`RUNNING` → `DONE`. `FAILED` can happen during a check or a run, including a run cut off by a
+crash (§7); **Check the file again** and **Change columns** run the check again. `CANCELED` is
+possible only before the run starts, or after a failure.
 
 ---
 
@@ -150,10 +151,35 @@ counselor keep that counselor. Telecallers are only assigned by name or email in
 - The run writes in batches of 500 rows; each batch is one transaction. A row that fails inside
   a batch is retried on its own, so one bad row does not block the others. Failed rows are
   counted and listed in the report.
-- Progress is saved after every batch. A run that is cut off (for example, the worker stops) is not
-  recovered automatically: its job stays RUNNING and needs attention. To finish that file, upload it
-  again; students already created are handled by the chosen duplicate behaviour. This is a known gap
-  (see §12).
+- Progress is saved after every batch, together with a **heartbeat**: the job's last sign of life.
+
+### A run that is cut off
+
+If the worker stops mid-run (a crash, a deploy, out of memory) nobody is left to finish the
+job, and BullMQ handing it to another worker changes nothing: the job has already been claimed
+(QUEUED → RUNNING), and a claimed job is never taken over.
+
+- **Detection.** The worker's `stuck-jobs` job (queue `avn-system`, every 2 minutes) marks every
+  import that is VALIDATING or RUNNING, and every export that is RUNNING, as **FAILED** when its
+  heartbeat is more than 10 minutes old. Imports record it as `failedIn: check` or `run`, keep the
+  progress they had saved, and say what happened: "The import stopped before it finished (the server
+  was probably restarted). At least 1,500 of 5,000 rows had been processed." A job still waiting in
+  the queue (QUEUED) is not touched: it runs when a worker is back. Without Redis,
+  `pnpm --filter @avn-cms/worker sweep:once` does the same once (for cron).
+- **Starting over.** The import screen shows **The import didn’t finish**, with what was saved
+  before it stopped, and three actions: **Check the file again** (the same columns, checked again;
+  students the stopped run already added now show as *Already in aVn CMS*), **Change columns**, and
+  **Cancel import** (the students already added stay). Then choose what to do with students already
+  in the workspace and start the import again. The import list shows the stopped import as Failed,
+  with how far it got. A stopped export says so in the exports list; request it again.
+- **No duplicates.** Students are matched by mobile number, so a second run never adds a student
+  twice, in any mode. With **Skip them** (the default) the students the stopped run added are left
+  alone. With **Update them** or **Fill in the gaps** they are processed again, which repeats the
+  file's notes and next-call follow-ups on those students: choose **Skip them** unless the rest of
+  the file still needs those changes.
+- **A slow job is not a dead one.** If recovery fails a job that was only slow, its runner notices
+  at its next batch (it saves progress only while the job is still RUNNING), stops, and leaves the
+  job as recovery left it. It never turns FAILED back into DONE. Batches it had saved stay.
 
 - **Problem report** (`<file>-problems.csv`): one line per problem, with the line number,
   severity (skipped or warning), field, the problem in plain words, and the original cells of
@@ -207,9 +233,11 @@ Export from **Leads** or **Web leads** with the **Export** button, or list all y
   minute. Downloads: 120 per minute.
 - **Audit log.** `import.upload`, `import.start`, `import.run`, `import.cancel`,
   `export.requested`, `export.run`, `export.downloaded`, `file.downloaded`.
-- **Background jobs** use the `avn-jobs` BullMQ queue (two at a time, lock 5 minutes). Without
+- **Background jobs** use the `avn-jobs` BullMQ queue (two at a time, lock 5 minutes). Every
+  request gets its own BullMQ job id (BullMQ refuses ids containing `:`, and ignores an id it has
+  seen before, which would silently drop an import that is checked or run a second time). Without
   Redis (`REDIS_URL` empty) jobs run in the web process, which is only suitable for local
-  development.
+  development: a restart of that process cuts a job off, and only `sweep:once` recovers it.
 
 ---
 
@@ -242,8 +270,10 @@ when the export is requested, with field messages.
 | Integration | `tests/integration/imports.int.test.ts` (7) | Wizard rules: mapping checks, check results, duplicate modes, round robin, cancel, template |
 | Integration | `tests/integration/imports-50k.int.test.ts` (1) | **Phase 6 exit:** 50,000 good rows and 100 bad ones; exactly the good rows created; report lists exactly the bad ones |
 | Integration | `tests/integration/exports.int.test.ts` (7) | Same rows as the screen, formula neutralising, role columns, XLSX and PDF output, personal and expiring links, web-leads admin only, re-check when the job runs, bad filters refused |
+| Integration | `tests/integration/job-recovery.int.test.ts` (6) | Only claimed jobs silent for 10 minutes are failed (queued, busy and finished ones are not); a re-delivered job does not run again; the worker sweep covers every workspace; **a run failed under the real runner stops without overwriting that, and starting over finishes the file with every student exactly once** (skip mode, and update mode after a run cut off at the end) |
+| Integration (real Redis) | `tests/integration/bullmq-jobs.int.test.ts` (2) | The web side enqueues on `avn-jobs`, the worker's own consumer (`apps/worker/src/workers.ts`) runs the check and the import and an export through `processJob`, and BullMQ records the three jobs as completed; an import checked a second time is processed again. Needs the docker Redis (`pnpm stack:up`); uses Redis database 15 (`TEST_REDIS_URL`) |
 | Migration guards | `packages/db/src/migrations.test.ts` (3) | Generated migrations never drop the protected indexes; row-level security on every tenant table |
-| End-to-end | `tests/e2e/specs/import-export.spec.ts` (4) | Admin wizard from upload to students in the workspace, with accessibility checks; the import list; export download and exports list; telecaller export without contact columns and with no import access |
+| End-to-end | `tests/e2e/specs/import-export.spec.ts` (5) | Admin wizard from upload to students in the workspace, with accessibility checks; the import list; **an import cut off mid-run, failed by the worker's `sweep:once`, shown as stopped, started over, and finished without a duplicate**; export download and exports list; telecaller export without contact columns and with no import access |
 
 Timing on the development machine (Windows 11, local Postgres 17): the 50,000-row import
 checked in 3.3 s and imported in about 93 s in total (about 540 rows a second, including the
@@ -258,5 +288,9 @@ checks and the problem report).
 - No `.xls` (older Excel) files; save as `.xlsx` or CSV.
 - Files over 100,000 rows must be split.
 - Telecallers are not assigned by round robin.
-- A run cut off by a crash is not recovered automatically (see §7).
+- A stopped import is not resumed from where it stopped: the person starts over (§7). Resuming
+  would need the progress saved in the same transaction as each batch (today it is saved just
+  after), so that no batch could be repeated.
+- A job whose request to the queue failed (Redis unreachable at that moment) stays QUEUED: the
+  person sees an error, but the job is not retried by the sweep.
 - Storage is the database until the Phase 7 object-storage decision.

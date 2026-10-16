@@ -698,6 +698,9 @@ model ImportJob {
   fileKey       String?   @map("file_key")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+  /// Last sign of life from whoever is working on the job (set when it is claimed and after
+  /// every batch). A job that stays VALIDATING/RUNNING without one is marked FAILED by the worker sweep.
+  heartbeatAt   DateTime? @map("heartbeat_at") @db.Timestamptz(6)
 
   @@index([tenantId, createdAt(sort: Desc)])
   @@map("import_jobs")
@@ -714,6 +717,9 @@ model ExportJob {
   fileKey       String?   @map("file_key")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+  /// Last sign of life from whoever is working on the job (set when it is claimed and after
+  /// every batch). A job that stays VALIDATING/RUNNING without one is marked FAILED by the worker sweep.
+  heartbeatAt   DateTime? @map("heartbeat_at") @db.Timestamptz(6)
 
   @@index([tenantId, createdAt(sort: Desc)])
   @@map("export_jobs")

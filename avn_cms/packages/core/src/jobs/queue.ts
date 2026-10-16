@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { getConfig } from '@avn-cms/config';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -24,7 +26,7 @@ export function registerLocalHandler(handler: Handler): void {
   localHandler = handler;
 }
 
-const g = globalThis as unknown as { __avnQueue?: Queue | null };
+const g = globalThis as unknown as { __avnQueue?: Queue | null; __avnQueueRedis?: Redis };
 
 function queue(): Queue | null {
   if (g.__avnQueue !== undefined) return g.__avnQueue;
@@ -32,12 +34,16 @@ function queue(): Queue | null {
   if (!url) return (g.__avnQueue = null);
   const connection = new Redis(url, { maxRetriesPerRequest: null });
   connection.on('error', () => undefined);
+  g.__avnQueueRedis = connection;
   g.__avnQueue = new Queue(JOB_QUEUE, { connection });
   return g.__avnQueue;
 }
 
 export interface EnqueueOptions {
-  /** Tests: run to completion before returning. */
+  /**
+   * Run to completion before returning. Defaults to true in tests *without* REDIS_URL (the
+   * normal test setup removes it); a test that sets REDIS_URL asks for the real queue.
+   */
   inline?: boolean;
 }
 
@@ -46,11 +52,15 @@ export async function enqueue(
   payload: JobPayload,
   options: EnqueueOptions = {},
 ): Promise<void> {
-  const inline = options.inline ?? getConfig().NODE_ENV === 'test';
+  const config = getConfig();
+  const inline = options.inline ?? (config.NODE_ENV === 'test' && !config.REDIS_URL);
   const q = inline ? null : queue();
   if (q) {
     await q.add(kind, payload, {
-      jobId: `${kind}:${payload.jobId}`,
+      // BullMQ refuses ids containing ":" and silently drops an add whose id still exists (finished
+      // jobs are kept for days), so a re-queued import — "check again", start over — needs a new one.
+      // Double delivery is harmless anyway: the runners claim the job row (QUEUED → RUNNING).
+      jobId: `${kind}-${payload.jobId}-${randomUUID()}`,
       attempts: 1,
       removeOnComplete: { age: 7 * 86_400, count: 1000 },
       removeOnFail: { age: 30 * 86_400 },
@@ -80,5 +90,8 @@ export async function enqueue(
 
 export async function closeQueue(): Promise<void> {
   if (g.__avnQueue) await g.__avnQueue.close().catch(() => undefined);
+  // BullMQ leaves a connection it was handed open.
+  if (g.__avnQueueRedis) await g.__avnQueueRedis.quit().catch(() => undefined);
   g.__avnQueue = undefined;
+  g.__avnQueueRedis = undefined;
 }

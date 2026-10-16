@@ -17,7 +17,13 @@ function summaryOf(item: ImportListItem): string {
     return `${r.created ?? 0} created · ${r.updated ?? 0} updated · ${r.failed ?? 0} failed`;
   }
   if (item.status === 'VALIDATED') return `${r.valid ?? 0} ready · ${r.invalid ?? 0} with problems`;
-  if (item.status === 'FAILED') return r.error ?? 'Failed';
+  if (item.status === 'FAILED') {
+    if (r.failedIn === 'run')
+      return r.processed
+        ? `Stopped after ${r.processed.toLocaleString('en-IN')} ${r.processed === 1 ? 'row' : 'rows'} · ${r.created ?? 0} created`
+        : 'Stopped before it finished';
+    return r.error ?? 'Failed';
+  }
   return '—';
 }
 

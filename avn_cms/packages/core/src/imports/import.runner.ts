@@ -10,6 +10,7 @@ import { stringify } from 'csv-stringify/sync';
 
 import { setAssignment } from '../assignments/assignment.repository';
 import type { JobPayload } from '../jobs/queue';
+import { JobSupersededError } from '../jobs/recovery';
 import {
   CLOSED_STAGES,
   DISPOSITION_LABEL,
@@ -66,6 +67,8 @@ export interface ImportResult {
   failed?: number;
   durationMs?: number;
   error?: string;
+  /** Set on a FAILED job: whether it stopped while checking the file or while importing. */
+  failedIn?: 'check' | 'run';
 }
 
 const actorCtx = (tenantId: string, p: ImportParams): Ctx => ({
@@ -245,11 +248,14 @@ export async function validateImport({ tenantId, jobId }: JobPayload): Promise<v
       'VALIDATING',
     );
   } catch (err) {
-    await setJob(tenantId, jobId, {
-      status: 'FAILED',
-      result: { error: messageOf(err) },
-      finishedAt: new Date(),
-    });
+    // Only while still VALIDATING: recovery may have failed this job already.
+    const failed: ImportResult = { error: messageOf(err), failedIn: 'check' };
+    await setJob(
+      tenantId,
+      jobId,
+      { status: 'FAILED', result: failed as Prisma.InputJsonValue, finishedAt: new Date() },
+      'VALIDATING',
+    );
   }
 }
 
@@ -628,11 +634,14 @@ async function processBatch(
 
 export async function runImport({ tenantId, jobId }: JobPayload): Promise<void> {
   const started = Date.now();
-  const claimed = await setJob(tenantId, jobId, { status: 'RUNNING' }, 'QUEUED');
+  // A job that is already RUNNING was claimed by a worker that may have died: recovery
+  // (jobs/recovery.ts) fails it once its heartbeat goes quiet. This claim never takes it over.
+  const claimed = await setJob(tenantId, jobId, { status: 'RUNNING', heartbeatAt: new Date() }, 'QUEUED');
   if (claimed.count !== 1) return; // already taken or canceled
   const { params } = await loadJob(tenantId, jobId);
   const mode = params.options!.duplicateMode;
   const ctx = actorCtx(tenantId, params);
+  let progress: ImportResult = {};
   try {
     const a = await analyse(tenantId, params);
     const existing = await existingPhones(
@@ -668,13 +677,20 @@ export async function runImport({ tenantId, jobId }: JobPayload): Promise<void> 
         counts,
         failures,
       );
-      await setJob(tenantId, jobId, {
-        result: {
-          processed: Math.min(i + BATCH_SIZE, a.candidates.length),
-          total: a.candidates.length,
-          ...counts,
-        } as Prisma.InputJsonValue,
-      });
+      progress = {
+        processed: Math.min(i + BATCH_SIZE, a.candidates.length),
+        total: a.candidates.length,
+        ...counts,
+      };
+      // Progress and heartbeat in one write. If recovery failed this job while we were still
+      // working, stop here instead of carrying on behind its back.
+      const alive = await setJob(
+        tenantId,
+        jobId,
+        { result: progress as Prisma.InputJsonValue, heartbeatAt: new Date() },
+        'RUNNING',
+      );
+      if (alive.count !== 1) throw new JobSupersededError();
     }
     if (used.size) {
       const at = new Date();
@@ -700,10 +716,11 @@ export async function runImport({ tenantId, jobId }: JobPayload): Promise<void> 
       durationMs: Date.now() - started,
     };
     await withTenant(tenantId, async (db) => {
-      await db.importJob.updateMany({
-        where: { id: jobId },
+      const finished = await db.importJob.updateMany({
+        where: { id: jobId, status: 'RUNNING' },
         data: { status: 'DONE', result: result as Prisma.InputJsonValue, finishedAt: new Date() },
       });
+      if (finished.count !== 1) throw new JobSupersededError();
       await audit(db, ctx, 'import.run', 'import_job', jobId, undefined, {
         filename: params.filename,
         mode,
@@ -711,11 +728,20 @@ export async function runImport({ tenantId, jobId }: JobPayload): Promise<void> 
       });
     });
   } catch (err) {
-    await setJob(tenantId, jobId, {
-      status: 'FAILED',
-      result: { error: messageOf(err) },
-      finishedAt: new Date(),
-    });
+    if (err instanceof JobSupersededError) {
+      console.error(
+        JSON.stringify({ level: 'warn', msg: 'import stopped: recovery had already failed it', jobId }),
+      );
+      return;
+    }
+    // Keep what the run had saved so far, so the screen can say how far it got.
+    const failed: ImportResult = { ...progress, error: messageOf(err), failedIn: 'run' };
+    await setJob(
+      tenantId,
+      jobId,
+      { status: 'FAILED', result: failed as Prisma.InputJsonValue, finishedAt: new Date() },
+      'RUNNING',
+    );
   }
 }
 

@@ -1,43 +1,25 @@
 import { getConfig } from '@avn-cms/config';
-import { JOB_QUEUE, processJob, type JobKind, type JobPayload } from '@avn-cms/core';
+import { JOB_QUEUE } from '@avn-cms/core';
 import { disconnectAll } from '@avn-cms/db';
-import { Queue, Worker } from 'bullmq';
+import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 
-import { expiredFilesSweepAllTenants, overdueSweepAllTenants } from './jobs';
+import { createJobsWorker, createSystemWorker, scheduleSystemJobs, SYSTEM_QUEUE } from './workers';
 
 /**
- * aVn CMS worker. Two queues on one Redis:
- *  - `avn-system`: scheduled system jobs (overdue sweep every 5 min, expired-file cleanup hourly);
- *    repeatable jobs are de-duplicated by BullMQ, so several workers can run safely.
- *  - `avn-jobs`: imports and exports requested from the web app.
+ * aVn CMS worker entrypoint: boots the BullMQ workers (see workers.ts) and shuts them down
+ * cleanly. Needs Redis.
  */
 const config = getConfig();
 if (!config.REDIS_URL) throw new Error('REDIS_URL is required for the worker');
 
 const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null });
-const SYSTEM_QUEUE = 'avn-system';
 
 const system = new Queue(SYSTEM_QUEUE, { connection });
-await system.upsertJobScheduler('overdue-sweep', { every: 5 * 60_000 }, { name: 'overdue-sweep' });
-await system.upsertJobScheduler('expired-files', { every: 60 * 60_000 }, { name: 'expired-files' });
+await scheduleSystemJobs(system);
 
-const systemWorker = new Worker(
-  SYSTEM_QUEUE,
-  async (job) => {
-    if (job.name === 'overdue-sweep') return overdueSweepAllTenants();
-    if (job.name === 'expired-files') return expiredFilesSweepAllTenants();
-    throw new Error(`Unknown job ${job.name}`);
-  },
-  { connection, concurrency: 1 },
-);
-
-const jobsWorker = new Worker(
-  JOB_QUEUE,
-  async (job) => processJob(job.name as JobKind, job.data as JobPayload),
-  // Imports/exports are heavy and run one transaction batch at a time; two in parallel is plenty.
-  { connection, concurrency: 2, lockDuration: 5 * 60_000 },
-);
+const systemWorker = createSystemWorker(connection);
+const jobsWorker = createJobsWorker(connection);
 
 for (const w of [systemWorker, jobsWorker]) {
   w.on('completed', (job) =>

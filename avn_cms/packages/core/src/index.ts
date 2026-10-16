@@ -24,6 +24,7 @@ export { openDownload } from './storage/download';
 export { deleteExpiredFiles, MAX_FILE_BYTES } from './storage/files';
 export { processJob } from './jobs/runner';
 export { JOB_QUEUE, closeQueue, enqueue, type JobKind, type JobPayload } from './jobs/queue';
+export { STALE_AFTER_MS, failStuckJobs, type RecoveryResult } from './jobs/recovery';
 export * as platform from './platform/platform.service';
 export type { DashboardDTO } from './reports/report.service';
 export * as intakeCredentials from './webLeads/credentials';

@@ -78,7 +78,12 @@ export function MappingForm({
   return (
     <form onSubmit={submit} noValidate className="space-y-6">
       {job.status === 'FAILED' && job.result.error && (
-        <Alert tone="danger" title="The last check didn’t finish">
+        <Alert
+          tone="danger"
+          title={
+            job.result.failedIn === 'run' ? 'The last import didn’t finish' : 'The last check didn’t finish'
+          }
+        >
           {job.result.error}
         </Alert>
       )}
