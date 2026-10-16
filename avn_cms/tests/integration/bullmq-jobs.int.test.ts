@@ -1,5 +1,13 @@
 import { resetConfigForTests } from '@avn-cms/config';
-import { closeQueue, exportsService, imports, JOB_QUEUE, openDownload } from '@avn-cms/core';
+import {
+  closeQueue,
+  documents,
+  exportsService,
+  getObjectStore,
+  imports,
+  JOB_QUEUE,
+  openDownload,
+} from '@avn-cms/core';
 import { ownerDb } from '@avn-cms/db/owner';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -7,7 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createJobsWorker } from '../../apps/worker/src/workers';
 import { ctxFor } from '../fixtures/ctx';
-import { makeTenant, makeUser, resetData } from '../fixtures/factory';
+import { makeLead, makeTenant, makeUser, resetData } from '../fixtures/factory';
 
 /**
  * The background-job path against a real Redis: the web side enqueues on the `avn-jobs` BullMQ
@@ -22,6 +30,9 @@ import { makeTenant, makeUser, resetData } from '../fixtures/factory';
 const REDIS_URL = process.env['TEST_REDIS_URL'] ?? 'redis://127.0.0.1:16390/15';
 
 const csv = (rows: string[][]) => Buffer.from(rows.map((r) => r.join(',')).join('\n'));
+
+// The antivirus test string, assembled at run time so this file never contains it whole.
+const EICAR = ['X5O!P%@AP[4\\PZX54(P^)7CC)7}$', 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!', '$H+H*'].join('');
 
 async function waitFor<T>(what: string, read: () => Promise<T | undefined | false>, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;
@@ -181,5 +192,51 @@ describe('background jobs through BullMQ and Redis', () => {
       (j) => j.name === 'import.validate' && (j.data as { jobId: string }).jobId === draft.id,
     );
     expect(checks).toHaveLength(2);
+  });
+
+  it('scans uploaded documents on the worker and blocks an infected one', async () => {
+    const counselor = await makeUser(tenant.id, 'COUNSELOR', 'counselor@bq.test');
+    const { student } = await makeLead(tenant.id, { counselorId: counselor.id });
+    const asCounselor = ctxFor(counselor);
+    const ids: string[] = [];
+    const send = async (filename: string, bytes: Buffer, docType: 'PASSPORT' | 'VISA') => {
+      const init = await documents.initUpload(asCounselor, {
+        filename,
+        mimeType: '',
+        sizeBytes: bytes.length,
+        studentId: student.id,
+        docType,
+      });
+      const put = await fetch(init.upload.url, {
+        method: 'PUT',
+        headers: init.upload.headers,
+        body: new Uint8Array(bytes),
+      });
+      expect(put.status).toBe(200);
+      await documents.completeUpload(asCounselor, init.document.id);
+      ids.push(init.document.id);
+      return init.document.id;
+    };
+    const stateOf = async (id: string) => (await documents.getDocument(asCounselor, id)).document.state;
+    try {
+      const clean = await send('passport.pdf', Buffer.from('%PDF-1.4\n%%EOF\n'), 'PASSPORT');
+      const infected = await send('visa.txt', Buffer.from(EICAR), 'VISA');
+      // The request returned before any scan: the worker does it, off the request path.
+      await waitFor('the clean file', async () => (await stateOf(clean)) === 'ready');
+      await waitFor('the infected file', async () => (await stateOf(infected)) === 'blocked');
+      const scans = (await queue.getJobs(['completed'])).filter((j) => j.name === 'document.scan');
+      expect(scans.map((j) => (j.data as { jobId: string }).jobId).sort()).toEqual([clean, infected].sort());
+      expect(await queue.getJobCounts('failed', 'active', 'waiting', 'delayed')).toEqual({
+        failed: 0,
+        active: 0,
+        waiting: 0,
+        delayed: 0,
+      });
+    } finally {
+      const store = getObjectStore();
+      for (const row of await ownerDb().document.findMany({ where: { id: { in: ids } } })) {
+        await store.remove(row.storageKey);
+      }
+    }
   });
 });

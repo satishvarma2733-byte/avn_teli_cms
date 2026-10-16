@@ -71,5 +71,7 @@ export interface LeadDetailData {
     logDisposition: boolean;
     addNote: boolean;
     delete: boolean;
+    documents: boolean;
+    verifyDocuments: boolean;
   };
 }

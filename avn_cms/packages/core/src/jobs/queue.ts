@@ -12,7 +12,7 @@ import { Redis } from 'ioredis';
  */
 export const JOB_QUEUE = 'avn-jobs';
 
-export type JobKind = 'import.validate' | 'import.run' | 'export.run';
+export type JobKind = 'import.validate' | 'import.run' | 'export.run' | 'document.scan';
 export interface JobPayload {
   tenantId: string;
   jobId: string;

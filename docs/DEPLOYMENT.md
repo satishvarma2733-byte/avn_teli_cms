@@ -10,7 +10,7 @@
 
 | Process | Command (from `avn_cms/`) | Needs |
 |---|---|---|
-| Web (UI + API) | `pnpm build` once, then `pnpm start` (port 3300) | Postgres, Redis (recommended), SMTP (optional) |
+| Web (UI + API) | `pnpm build` once, then `pnpm start` (port 3300) | Postgres, Redis (recommended), SMTP (optional), Cloudflare R2 + ClamAV (for documents) |
 | Worker | `pnpm --filter @avn-cms/worker start` | Postgres, **Redis (required)** |
 | Migrations | `pnpm db:migrate` | Postgres owner role |
 
@@ -18,10 +18,10 @@ Node.js ≥ 22.12 (developed on 24.14), pnpm 9. The web app is stateless; run as
 instances as needed behind a load balancer. One worker is enough (BullMQ de-duplicates the
 repeatable job if more run).
 
-The worker consumes two BullMQ queues: `avn-jobs` (imports and exports) and `avn-system`
+The worker consumes two BullMQ queues: `avn-jobs` (imports, exports and document virus scans) and `avn-system`
 (overdue sweep every 5 minutes, expired-file cleanup hourly, and a stuck-jobs sweep every 2 minutes
 that marks imports and exports cut off by a worker crash as failed, so people can start over;
-see `IMPORT_EXPORT.md` §7).
+see `IMPORT_EXPORT.md` §7; and a document sweep every 2 minutes that re-queues scans that never ran, removes blocked and long-deleted files, and drops abandoned uploads; see `DOCUMENTS.md` §8).
 
 Without Redis the web app still works, but rate limits are per process, imports and exports run
 inside the web process (development only: a restart cuts them off), and the worker cannot run.
@@ -44,6 +44,9 @@ problems if any are invalid). Empty values mean "not set".
 | `ENCRYPTION_KEY` | yes | ≥ 32 random bytes, base64 — encrypts MFA secrets. **Changing it invalidates every enrolled authenticator** |
 | `SESSION_TTL_HOURS` | no | Default 168 (7 days); idle sessions end after 48 h |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | no | Without SMTP, invites/resets show the admin a one-time link instead; nothing claims an email was sent |
+| `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | for documents | Cloudflare R2 (S3 API). All four, in **both the web app and the worker**; without them the documents vault answers "storage is not set up" (503). A half-set group stops the process at start-up. Setup: `DOCUMENTS.md` §9 |
+| `R2_ENDPOINT` | no | Overrides `https://<account>.r2.cloudflarestorage.com`. Only for a local S3-compatible server; leave unset on R2 |
+| `CLAMAV_HOST`, `CLAMAV_PORT` | for documents | clamd (default port 3310), reachable from the web app and the worker, **on a private network only**. Without it uploaded files stay "checking" and are never released |
 | `SEED_PASSWORD` | dev only | Demo seed; the seed refuses to run when `NODE_ENV=production` |
 
 Generate secrets: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
@@ -89,8 +92,13 @@ never rename or drop in the same release).
 
 ## 5. Health and smoke checks
 
-- `GET /api/health` → `200 {"status":"ok","database":"up","redis":"up"}`; `503` with
+- `GET /api/health` → `200 {"status":"ok","database":"up","redis":"up","storage":"up","scanner":"up"}`; `503` with
   `"degraded"` when the database or a configured Redis is down. No versions or hostnames.
+- `storage` (R2) and `scanner` (ClamAV) are each `up`, `down` or `not_configured`. They **never** change the
+  status or the HTTP code: the rest of the CRM works without documents, and a load balancer must not pull every
+  instance because R2 or ClamAV is down. Alert on either being `down` as its own check. Each probe gives up
+  after 1.5 seconds and the answer is kept 15 seconds per instance (`DOCUMENTS.md` §10a). Files whose virus scan
+  did not finish are listed for admins at the top of the Documents page.
 - After each deploy:
   1. `GET /api/health` is 200.
   2. Sign in as an admin; open Dashboard, Leads, Follow-ups, Reports.
@@ -117,6 +125,7 @@ never rename or drop in the same release).
 - Restore drill (do this before go-live): restore the latest dump into a new database, point a
   staging web instance at it, run the smoke checks in §5.
 - Redis holds only rate-limit counters and queue state; it can be lost without data loss.
+- **Documents are not in the database dump.** They live in the R2 bucket. R2 is durable, but it does not protect against deletion or a bad deploy: keep the bucket private, give the app's token only Object Read & Write on it, and copy the bucket to a second location (for example with `rclone`) on a schedule that matches how much you can afford to lose. A database restore without the bucket leaves records pointing at missing files.
 
 ## 7a. Data safety rules
 

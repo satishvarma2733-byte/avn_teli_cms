@@ -3,9 +3,9 @@
 > Live record. A module is **Verified** only when its behaviour runs and its checks pass.
 > Code: `avn_cms/`. Last updated: 2026-10-16.
 
-**Overall status: PHASES 1–6 IMPLEMENTED — PHASES 7–8 NOT STARTED**
+**Overall status: PHASES 1–7 IMPLEMENTED — PHASE 8 NOT STARTED**
 
-Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (with the gaps listed below); Phases 7–8 (documents, automation) are not started, so the documented scope is not complete and this is not yet ready for staging validation.
+Phases 1–7 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (with the gaps listed below). Phase 7 (documents) was verified against MinIO and ClamAV, **not against a real Cloudflare R2 bucket**: that needs your R2 account and keys. Phase 8 (automation) is not started, so the documented scope is not complete and this is not yet ready for staging validation.
 
 ## Phases
 
@@ -19,7 +19,7 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | 4 | Dashboards & reports | **Verified** (one gap) | reports reconciliation suite; e2e. Gap: no Redis caching / materialisation yet (not needed at current volumes) |
 | 5 | Web leads + LeadXP-compatible `/api/webleads` | **Verified locally** | 12 contract tests (both eWings payload shapes), HTTP smoke script 7/7, e2e intake → convert |
 | 6 | Import / export | **Verified** | Migrations `import_export` (`stored_files`, job states, RLS) and `job_heartbeat`; core `imports/`, `exports/`, `storage/`, `jobs/` (queue, runner, recovery); import wizard (`/app/imports`) with a stopped-import screen and start over, Export dialogs on Leads and Web leads, `/app/exports`; API routes; worker queues `avn-jobs` and `avn-system` (stuck-jobs sweep). Tests: import unit 10/10; imports int 7/7; 50k-row int 1/1 (50,100 rows: 3.3 s check, 93 s total); exports int 7/7; recovery int 6/6; **queue int 2/2 against real Redis**; queue-refused-a-job int 6/6; migration guards 3/3; e2e 5/5. See `IMPORT_EXPORT.md` |
-| 7 | Documents vault | Not started (tables exist) | |
+| 7 | Documents vault (Cloudflare R2) | **Verified locally** (gap: not yet run against real R2) | Migrations `documents_vault` and `documents_version_unique`; core `documents/` (R2 driver, ClamAV client, service, scan job, housekeeping); folder vault (`/app/documents`) and a Documents tab with the checklist on each lead; presigned browser uploads; files unavailable until a clean scan; audited downloads. Tests: unit 18; integration 21 on real MinIO + ClamAV (an infected EICAR file never downloadable, counselor scope, versions, purge) and 1 through the real Redis queue; e2e 6 (real browser upload to MinIO, scan, download, blocked file; an admin can see files whose scan gave up and scan them again). Storage and scanner health are reported by `/api/health`. See `DOCUMENTS.md` |
 | 8 | Automation rules | Not started (tables exist). Built-in: round-robin assignment, overdue escalation | |
 | 9 | Security hardening | Partly | See security section |
 | 10 | Production readiness | Partly | `DEPLOYMENT.md`, health check, smoke script; no host chosen |
@@ -34,10 +34,11 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | Students/leads (create, dedupe, search, filters, views, keyset pagination, stage, potential/HOT, assignment, notes, bulk, soft delete) | Verified | |
 | Follow-ups (queue buckets, schedule, reschedule, disposition logging, suggested stage, next call) | Verified | |
 | Activity timeline, stage history, audit log + viewer | Verified | Append-only enforced by grants |
-| Worker (BullMQ: repeatable overdue sweep + escalation notifications, expired-file cleanup, stuck-jobs sweep, `avn-jobs` consumer for imports/exports) | Verified | Sweeps covered by integration tests; the `avn-jobs` queue and the worker's consumer run an import and an export against real Redis (`bullmq-jobs.int.test.ts`). Not covered by a test: the `avn-system` repeat scheduler itself (`upsertJobScheduler`), and a worker process killed mid-run (the cut-off is simulated through the database) |
+| Worker (BullMQ: repeatable overdue sweep + escalation notifications, expired-file cleanup, stuck-jobs sweep, documents housekeeping, `avn-jobs` consumer for imports, exports and document scans) | Verified | Sweeps covered by integration tests; the `avn-jobs` queue and the worker's consumer run imports, exports and document scans against a real Redis (`bullmq-jobs.int.test.ts`) |
 | Web leads inbox (status, flags, convert/attach, spam/reject) | Verified | |
 | Intake credentials (create/rotate with 24 h overlap/revoke) | Verified | |
 | Import wizard and export jobs (dry run before any write, duplicate modes, round robin, signed expiring downloads) | Verified | Problem reports; 50k-row exit test; role-limited exports |
+| Documents vault: folders, versioned files, per-student checklist, signed uploads and downloads, antivirus scan before release | Verified (on MinIO + ClamAV) | The R2 driver is the S3 API with signed URLs; R2-specific behaviour (CORS, checksums) follows its documentation and is untested on a real bucket |
 | Dashboards (role-aware) + Reports (funnel, sources, team, stage, calls) | Verified | Charts: one validated hue, HTML bars/columns, table view |
 | Users (invite, role, disable, reset, transfer-on-delete, delete) | Verified | Last-admin and self-change guards |
 | Settings (timezone, round-robin, uncontacted minutes, lead sources) | Verified (UI + API) | `uncontactedMinutes` is stored but only used once automations exist |
@@ -51,9 +52,9 @@ Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (wi
 | Lint (incl. architecture import boundaries) | `pnpm lint` | pass, 0 warnings |
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
-| Unit | `pnpm test:unit` | **182 passed** (RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping) |
-| Integration (real Postgres, RLS; the queue test also needs the docker Redis) | `pnpm test:integration` | **86 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, imports/exports through BullMQ on real Redis, a job the queue refused) |
-| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **20 passed** (sign-in, leads, RBAC, users, web-leads intake, import wizard incl. a cut-off import and start over, exports) |
+| Unit | `pnpm test:unit` | **200 passed** (RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **108 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents) |
+| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **26 passed** (sign-in, leads, RBAC, users, web-leads intake, import wizard incl. a cut-off import and start over, exports, documents) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
 
@@ -67,7 +68,7 @@ backoff; generic login errors with timing equalisation; single-use expiring rese
 TOTP MFA (secret AES-256-GCM at rest; re-enrolment can't drop an active factor); CSRF token +
 same-origin check on cookie mutations; per-user and per-IP rate limits (Redis); strict CSP with
 per-request nonce; security headers; Zod on every input; no mass assignment (tested);
-secrets never logged; intake secrets hashed and shown once.
+secrets never logged; intake secrets hashed and shown once; documents: private bucket reached only through signed URLs bound to the file type and size, type allow-list with a first-bytes check, virus scan before release (fails closed), storage keys include the workspace, 404 for others' files, every download audited.
 
 Open: dependency/secret scanning in CI (no CI yet); penetration-test checklist (Phase 9);
 MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
@@ -90,6 +91,11 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
   codes (e.g. `CALL_BACK_LATER`). The seed is fixed; resetting the dev database needs your
   go-ahead (`pnpm --filter @avn-cms/db exec prisma migrate reset`, then `pnpm db:seed`).
 - Counselors see an empty Web leads inbox: "routed to them" needs a routing rule (Phase 8).
+- Documents have never run against a real Cloudflare R2 bucket (no account or keys here). MinIO speaks the same S3 API and every flow is tested on it, but R2's CORS rules (`DOCUMENTS.md` §9) and its handling of signed uploads need one real try before go-live, as does the `HeadBucket` storage health probe with a bucket-scoped Object Read & Write token.
+- Downloads are audited when the signed link is issued, not when the bytes are fetched.
+- **Found and fixed (2026-10-16):** the Exports list (Phase 6) scrolled sideways on a phone once it had rows: the visually hidden "Action" header text is positioned against the page, not the table, so it sat off-screen at the far right and widened the page. My earlier phone check missed it because the list was empty. Fixed in the exports list and the new vault table (the scrolling wrapper is now the positioning context), and the browser tests now check phone width on the vault, exports and imports lists.
+- `docker-compose.yml` uses `minio/minio:latest`, which Docker Hub no longer lets new machines pull; it works here from the local cache. If it fails for you, use another S3-compatible server (`DOCUMENTS.md` §11).
+- `prisma migrate dev` hangs in this non-interactive environment; migrations here are applied with `prisma migrate deploy` and checked with `prisma migrate diff` (the only difference left is the unmodelled `users_tenant_email_key`).
 - Source ROI shows conversion only: ad spend isn't recorded.
 - **Found and fixed (2026-10-16):** the first test of the imports/exports queue against real Redis
   showed that, before this fix, every `enqueue` onto BullMQ threw (`Custom Id cannot contain :`), so
@@ -116,12 +122,12 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
    (2026-10-16, repo-local identity `opsewings`). No CI is configured yet.
 2. **Hosting target** for staging and production (Node server + Postgres + Redis).
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
-4. Next phase: Documents (7), which needs an object-storage choice (S3-compatible; MinIO locally). Automation (8) follows.
+4. **Cloudflare R2 for staging/production:** create the bucket and an Object Read & Write token, set its CORS rules, and provide a private ClamAV host (`DOCUMENTS.md` §9–10). Then Automation (8) is next.
 
 ## Files
 
-Code: `avn_cms/` — 238 TypeScript/TSX/SQL/CSS source files (~23.0k lines, excluding generated code) across
+Code: `avn_cms/` — 265 TypeScript/TSX/SQL/CSS source files (~27.0k lines, excluding generated code) across
 `apps/web`, `apps/worker`, `packages/{config,db,auth,core}`, `tests/`, `scripts/`.
-Docs created: `PROJECT_AUDIT.md`, `REQUIREMENTS.md`, `BUILD_STATUS.md`, `DEPLOYMENT.md`, `IMPORT_EXPORT.md`.
+Docs created: `PROJECT_AUDIT.md`, `REQUIREMENTS.md`, `BUILD_STATUS.md`, `DEPLOYMENT.md`, `IMPORT_EXPORT.md`, `DOCUMENTS.md`.
 Docs updated: `README.md`, `ARCHITECTURE.md`, `MODULE_STRUCTURE.md`, `DEVELOPMENT_PHASES.md`,
 `WEBLEADS_COMPATIBILITY.md`.

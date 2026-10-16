@@ -25,3 +25,15 @@ export function testPhone(): string {
   phoneSeq += 1;
   return `90008${String(10000 + (phoneSeq % 90000)).slice(-5)}`;
 }
+
+/**
+ * On a phone a wide table must scroll inside its card; the page itself must not scroll sideways.
+ * Resizes the window to a phone, so call it last in a test.
+ */
+export async function expectNoSidewaysScroll(page: Page) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fits = await page.evaluate(
+    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+  );
+  expect(fits, 'the page scrolls sideways at phone width').toBe(true);
+}

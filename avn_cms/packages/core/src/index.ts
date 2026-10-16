@@ -18,6 +18,19 @@ export * as users from './users/user.service';
 export * as auditLog from './audit/audit.service';
 export * as imports from './imports/import.service';
 export type { ImportView } from './imports/import.service';
+export * as documents from './documents/document.service';
+export { listStuckScans, rescanDocument } from './documents/stuck';
+export { documentsHealth, type DocumentsHealth } from './documents/health';
+export type { DocumentView, FolderView, DocumentState } from './documents/document.service';
+export { scanDocument, maintainDocuments, type MaintenanceResult } from './documents/document.runner';
+export {
+  applyBucketCors,
+  ensureBucket,
+  getObjectStore,
+  objectStoreConfigured,
+  type ObjectStore,
+} from './documents/object-store';
+export { clamdScanner, setScannerForTests, ScannerUnavailableError, type Scanner } from './documents/scanner';
 export * as exportsService from './exports/export.service';
 export type { ExportView } from './exports/export.service';
 export { openDownload } from './storage/download';

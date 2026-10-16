@@ -189,7 +189,7 @@ Create / rotate / revoke are audited.
 `id, tenant_id, name, parent_id null, created_by, created_at, deleted_at`. (The "Educational Folders Vault" — e.g. "admissions 2026".)
 
 ### `documents`
-`id, tenant_id, folder_id null, student_id null, filename, mime_type, size_bytes, storage_key, scan_status(PENDING|CLEAN|INFECTED), version int, uploaded_by, created_at, deleted_at`. Served only via signed, expiring URLs.
+`id, tenant_id, folder_id null, student_id null, series_id, doc_type null, filename, mime_type, size_bytes, storage_key, scan_status(PENDING|CLEAN|INFECTED|REJECTED), scan_signature null, scan_attempts, scan_error null, scanned_at null, uploaded_at null, version int, uploaded_by, created_at, deleted_at null, purged_at null`. The bytes live in Cloudflare R2 under `storage_key` (`tenants/<tenant>/documents/<id>`). Every version of one document is a row; versions share `series_id` (the first version’s own id) and `(tenant_id, series_id, version)` is unique. `uploaded_at` is null until the browser’s upload is confirmed; `scan_status` is PENDING until the antivirus has spoken, and only CLEAN files are served, only through signed, expiring URLs (`DOCUMENTS.md`). `purged_at` marks when the stored object was removed.
 
 ### `student_documents` (checklist)
 Per-student required-doc tracking.

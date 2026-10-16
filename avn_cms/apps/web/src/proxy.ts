@@ -7,6 +7,21 @@ import { NextResponse, type NextRequest } from 'next/server';
  */
 const SESSION_COOKIE = 'avn_session';
 
+/**
+ * Where the browser sends uploaded documents (presigned URLs for Cloudflare R2, or the local
+ * S3-compatible server). It is the only extra origin the page may connect to.
+ */
+function storageOrigin(): string {
+  const endpoint =
+    process.env.R2_ENDPOINT ||
+    (process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : '');
+  try {
+    return endpoint ? new URL(endpoint).origin : '';
+  } catch {
+    return '';
+  }
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const protectedArea = pathname.startsWith('/app') || pathname.startsWith('/platform');
@@ -18,6 +33,7 @@ export function proxy(request: NextRequest) {
 
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV === 'development';
+  const storage = storageOrigin();
   // Inline style attributes are allowed (charts and the virtual table set them); scripts are
   // nonce-only. Everything else is same-origin.
   const csp = [
@@ -26,7 +42,7 @@ export function proxy(request: NextRequest) {
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data:`,
     `font-src 'self'`,
-    `connect-src 'self'${isDev ? ' ws:' : ''}`,
+    `connect-src 'self'${storage ? ` ${storage}` : ''}${isDev ? ' ws:' : ''}`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,

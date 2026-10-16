@@ -25,6 +25,8 @@ const serverEnv: Record<string, string> = {
   SMTP_PORT: '',
   // Per-process rate limits (no shared Redis state between runs).
   REDIS_URL: '',
+  // Documents go to the test bucket, never the development one.
+  R2_BUCKET: process.env['TEST_R2_BUCKET'] ?? process.env['R2_BUCKET'] ?? '',
 };
 
 export default defineConfig({

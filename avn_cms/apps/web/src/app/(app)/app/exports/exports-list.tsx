@@ -79,7 +79,7 @@ export function ExportsList() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <caption className="sr-only">Your exports, newest first</caption>
           <thead className="bg-surface text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">

@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { StudentDocuments } from '@/components/documents/student-documents';
 import { DispositionBadge, LeadFlags, StageBadge } from '@/components/leads/stage-badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -186,6 +187,7 @@ export function LeadDetail({ initial, emailWarning }: { initial: LeadDetailData;
             ['followups', `Follow-ups (${lead.followUps.length})`],
             ['notes', `Notes (${lead.notes.length})`],
             ['history', 'Stage history'],
+            ...(p.documents ? [['documents', 'Documents']] : []),
           ].map(([v, label]) => (
             <Tabs.Trigger
               key={v}
@@ -355,6 +357,12 @@ export function LeadDetail({ initial, emailWarning }: { initial: LeadDetailData;
             </ol>
           </Card>
         </Tabs.Content>
+
+        {p.documents && (
+          <Tabs.Content value="documents" className="mt-6">
+            <StudentDocuments studentId={lead.student.id} canReview={p.verifyDocuments} />
+          </Tabs.Content>
+        )}
       </Tabs.Root>
 
       {dialog === 'stage' && (

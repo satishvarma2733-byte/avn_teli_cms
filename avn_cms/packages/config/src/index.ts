@@ -12,28 +12,81 @@ const secret = z
   .min(1, 'is required')
   .refine((v) => Buffer.from(v, 'base64').length >= 32, 'must be at least 32 random bytes, base64');
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  APP_URL: z.url().default('http://localhost:3300'),
-  DATABASE_URL: z.string().startsWith('postgres'),
-  DATABASE_OWNER_URL: z.string().startsWith('postgres'),
-  REDIS_URL: z.string().startsWith('redis').optional(),
-  SESSION_SECRET: secret,
-  ENCRYPTION_KEY: secret,
-  SESSION_TTL_HOURS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(24 * 90)
-    .default(168),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().default('aVn CMS <no-reply@avn-cms.local>'),
-});
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    APP_URL: z.url().default('http://localhost:3300'),
+    DATABASE_URL: z.string().startsWith('postgres'),
+    DATABASE_OWNER_URL: z.string().startsWith('postgres'),
+    REDIS_URL: z.string().startsWith('redis').optional(),
+    SESSION_SECRET: secret,
+    ENCRYPTION_KEY: secret,
+    SESSION_TTL_HOURS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 90)
+      .default(168),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_FROM: z.string().default('aVn CMS <no-reply@avn-cms.local>'),
+    // Document storage: Cloudflare R2 through its S3 API. Set the bucket, the key pair and either the
+    // account id or an endpoint, all together. Unset, the documents vault says storage is not set up.
+    R2_ACCOUNT_ID: z.string().optional(),
+    R2_ACCESS_KEY_ID: z.string().optional(),
+    R2_SECRET_ACCESS_KEY: z.string().optional(),
+    R2_BUCKET: z.string().optional(),
+    // Overrides https://<account>.r2.cloudflarestorage.com (local MinIO, or any S3-compatible server).
+    R2_ENDPOINT: z.url().optional(),
+    // Antivirus (clamd). Without it uploaded documents stay unavailable: nothing is served unscanned.
+    CLAMAV_HOST: z.string().optional(),
+    CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+  })
+  .superRefine((env, ctx) => {
+    // Half-set storage settings would silently disable documents; say so instead.
+    const needed = ['R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY'] as const;
+    const anySet = needed.some((k) => env[k]) || env.R2_ACCOUNT_ID || env.R2_ENDPOINT;
+    if (!anySet) return;
+    for (const key of needed) {
+      if (!env[key])
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'is required when document storage is configured',
+        });
+    }
+    if (!env.R2_ACCOUNT_ID && !env.R2_ENDPOINT) {
+      ctx.addIssue({ code: 'custom', path: ['R2_ACCOUNT_ID'], message: 'is required (or set R2_ENDPOINT)' });
+    }
+  });
 
 export type AppConfig = z.infer<typeof envSchema>;
+
+export interface ObjectStorageConfig {
+  endpoint: string;
+  region: 'auto';
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
+/** The R2 settings when every needed value is present, otherwise null (documents unavailable). */
+export function objectStorageConfig(config: AppConfig): ObjectStorageConfig | null {
+  const { R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ACCOUNT_ID, R2_ENDPOINT } = config;
+  if (!R2_BUCKET || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) return null;
+  const endpoint =
+    R2_ENDPOINT ?? (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null);
+  if (!endpoint) return null;
+  return {
+    endpoint: endpoint.replace(/\/+$/, ''),
+    region: 'auto',
+    bucket: R2_BUCKET,
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  };
+}
 
 let cached: AppConfig | undefined;
 

@@ -1,3 +1,4 @@
+import { scanDocument } from '../documents/document.runner';
 import { exportRun } from '../exports/export.runner';
 import { runImport, validateImport } from '../imports/import.runner';
 import { registerLocalHandler, type JobKind, type JobPayload } from './queue';
@@ -11,6 +12,8 @@ export async function processJob(kind: JobKind, payload: JobPayload): Promise<vo
       return runImport(payload);
     case 'export.run':
       return exportRun(payload);
+    case 'document.scan':
+      return scanDocument(payload);
   }
 }
 

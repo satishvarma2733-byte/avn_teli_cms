@@ -1,4 +1,4 @@
-import { deleteExpiredFiles, failStuckJobs, followups } from '@avn-cms/core';
+import { deleteExpiredFiles, failStuckJobs, followups, maintainDocuments } from '@avn-cms/core';
 import { withTenant } from '@avn-cms/db';
 import { ownerDb } from '@avn-cms/db/owner';
 
@@ -57,6 +57,34 @@ export async function stuckJobsSweepAllTenants(now = new Date()) {
         JSON.stringify({
           level: 'error',
           msg: 'stuck jobs sweep failed',
+          tenant: t.slug,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }
+  return results;
+}
+
+/**
+ * Documents housekeeping in every workspace: queue scans that never ran or failed, remove the
+ * stored files of blocked and long-deleted documents, drop uploads that were never completed.
+ */
+export async function documentMaintenanceAllTenants(now = new Date()) {
+  const tenants = await ownerDb().tenant.findMany({
+    where: { status: { not: 'SUSPENDED' } },
+    select: { id: true, slug: true },
+  });
+  const results: { tenant: string; requeued: number; purged: number; abandoned: number }[] = [];
+  for (const t of tenants) {
+    try {
+      const r = await maintainDocuments(t.id, now);
+      if (r.requeued + r.purged + r.abandoned > 0) results.push({ tenant: t.slug, ...r });
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'document maintenance failed',
           tenant: t.slug,
           error: err instanceof Error ? err.message : String(err),
         }),

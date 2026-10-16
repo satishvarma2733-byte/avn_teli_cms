@@ -2,10 +2,18 @@
  * Zod DTOs shared by API routes, services and client forms. Client-safe: imports only zod
  * and the generated enum constants (no database client, no Node APIs).
  */
-import { CallDisposition, LeadStage, Priority, RoleCode, WebLeadStatus } from '@avn-cms/db/enums';
+import {
+  CallDisposition,
+  LeadStage,
+  Priority,
+  RoleCode,
+  StudentDocStatus,
+  StudentDocType,
+  WebLeadStatus,
+} from '@avn-cms/db/enums';
 import { z } from 'zod';
 
-export { CallDisposition, LeadStage, Priority, RoleCode, WebLeadStatus };
+export { CallDisposition, LeadStage, Priority, RoleCode, StudentDocStatus, StudentDocType, WebLeadStatus };
 
 const text = (max: number) =>
   z
@@ -335,3 +343,105 @@ export const reportQuerySchema = z.object({
   assigneeId: uuid.optional(),
 });
 export type ReportQuery = z.output<typeof reportQuerySchema>;
+
+// ── Documents vault (Phase 7) ────────────────────────────────────────────────
+
+/** Largest file the vault takes. The scanner and the upload check enforce it too. */
+export const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+
+/**
+ * What the vault accepts. The server decides the type from the file name, then checks that the
+ * file's first bytes agree (documents/rules.ts); a client-supplied type is never trusted.
+ */
+export const DOCUMENT_FORMATS = [
+  { mime: 'application/pdf', extensions: ['pdf'], label: 'PDF', inline: true },
+  { mime: 'image/jpeg', extensions: ['jpg', 'jpeg'], label: 'JPEG image', inline: true },
+  { mime: 'image/png', extensions: ['png'], label: 'PNG image', inline: true },
+  { mime: 'image/webp', extensions: ['webp'], label: 'WebP image', inline: true },
+  { mime: 'application/msword', extensions: ['doc'], label: 'Word document', inline: false },
+  {
+    mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    extensions: ['docx'],
+    label: 'Word document',
+    inline: false,
+  },
+  { mime: 'application/vnd.ms-excel', extensions: ['xls'], label: 'Excel sheet', inline: false },
+  {
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    extensions: ['xlsx'],
+    label: 'Excel sheet',
+    inline: false,
+  },
+  { mime: 'text/plain', extensions: ['txt'], label: 'Text file', inline: false },
+] as const;
+
+/** For <input type="file" accept>. */
+export const DOCUMENT_ACCEPT = DOCUMENT_FORMATS.flatMap((f) => f.extensions.map((e) => `.${e}`)).join(',');
+
+export const DOC_TYPE_LABEL: Record<StudentDocType, string> = {
+  PASSPORT: 'Passport',
+  MARKS_MEMO: 'Marks memo',
+  NEET_RESULT: 'NEET result',
+  TRANSFER_CERT: 'Transfer certificate',
+  PHOTO: 'Photo',
+  ADMISSION_LETTER: 'Admission letter',
+  VISA: 'Visa',
+  PAYMENT_RECEIPT: 'Payment receipt',
+  OTHER: 'Other document',
+};
+
+/** The items every student's checklist shows (everything but "other"). */
+export const CHECKLIST_TYPES: readonly StudentDocType[] = [
+  'PASSPORT',
+  'MARKS_MEMO',
+  'NEET_RESULT',
+  'TRANSFER_CERT',
+  'PHOTO',
+  'ADMISSION_LETTER',
+  'VISA',
+  'PAYMENT_RECEIPT',
+];
+
+export const folderCreateSchema = z.object({
+  name: requiredText(100, 'Give the folder a name.'),
+  parentId: uuid.nullable().optional(),
+});
+export type FolderCreateDTO = z.output<typeof folderCreateSchema>;
+
+export const folderUpdateSchema = z.object({ name: requiredText(100, 'Give the folder a name.') });
+
+export const folderListQuerySchema = z.object({ parentId: uuid.optional() });
+
+/**
+ * Starts an upload. Put it in a folder (admins), or on a student (with the checklist item it is
+ * for). `replaces` uploads a new version of an existing document.
+ */
+export const documentInitSchema = z.object({
+  filename: requiredText(260, 'Choose a file.'),
+  mimeType: z.string().trim().max(150).default(''),
+  sizeBytes: z
+    .number()
+    .int()
+    .min(1, 'The file is empty.')
+    .max(MAX_DOCUMENT_BYTES, 'Files can be at most 20 MB.'),
+  folderId: uuid.nullable().optional(),
+  studentId: uuid.optional(),
+  docType: z.enum(StudentDocType).optional(),
+  replaces: uuid.optional(),
+});
+export type DocumentInitDTO = z.output<typeof documentInitSchema>;
+
+export const documentListQuerySchema = z.object({
+  folderId: uuid.optional(),
+  q: z.string().trim().max(100).optional(),
+});
+
+export const documentUrlQuerySchema = z.object({
+  disposition: z.enum(['attachment', 'inline']).default('attachment'),
+});
+
+export const checklistReviewSchema = z.object({
+  status: z.enum(['UPLOADED', 'VERIFIED', 'REJECTED']),
+  note: z.string().trim().max(500).optional(),
+});
+export type ChecklistReviewDTO = z.output<typeof checklistReviewSchema>;

@@ -17,6 +17,8 @@
     "@avn-cms/auth": "workspace:*",
     "@avn-cms/config": "workspace:*",
     "@avn-cms/db": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "bullmq": "6.3.9",
     "csv-parse": "^6.1.0",
     "csv-stringify": "^6.6.0",

@@ -5,7 +5,7 @@
 > produces. No phase starts before the previous one's exit criteria are green
 > (`lint` + `typecheck` + `test` + `test:e2e`).
 
-**Status (2026-10-16):** Phases 1–6 built and verified locally (lint, typecheck, format, 182 unit, 72 integration, 19 e2e — see [`BUILD_STATUS.md`](BUILD_STATUS.md) for evidence and the remaining gaps: 100k-row load test, report caching, crash recovery for interrupted imports). Phases 7–10 not started, except the pieces noted there (round-robin, overdue escalation, health check, deployment guide).
+**Status (2026-10-16):** Phases 1–7 built and verified locally (lint, typecheck, format, 200 unit, 108 integration, 26 e2e — see [`BUILD_STATUS.md`](BUILD_STATUS.md) for evidence and the remaining gaps: 100k-row load test, report caching, the documents vault not yet run against a real R2 bucket). Phases 8–10 not started, except the pieces noted there (round-robin, overdue escalation, health check, deployment guide).
 
 **Rule for every phase (from the spec):**
 *Before* — explain what will be built, list files to create/change, explain DB changes,
@@ -178,7 +178,11 @@ missing/verified/rejected; audit on every download.
 **Exit:** an infected test file never becomes downloadable; a counselor can only reach
 documents of their own leads; every download is audited.
 
-**Docs:** section in `FEATURES.md` + `SECURITY.md` upload section.
+**Docs:** `DOCUMENTS.md` (the feature and its upload security; the standalone `FEATURES.md` and `SECURITY.md` arrive with Phase 10).
+
+**Status (2026-10-16):** Verified locally on MinIO and ClamAV: lint, typecheck, format, 200 unit, 108 integration, 26 e2e. The exit criteria are tested: an infected test file never becomes downloadable, a counselor reaches only the documents of their own leads, every download is audited. Not yet run against a real R2 bucket (see `DOCUMENTS.md` §9).
+
+**Decision (2026-10-16):** object storage is **Cloudflare R2** (S3 API, presigned URLs). The malware scan is ClamAV (`clamd`), and a file is served only after a clean verdict.
 
 ---
 
@@ -272,4 +276,4 @@ The spec asks for 20 Markdown docs. Here's where each is produced so none is mis
 2. **Stack:** built as written (Next.js + Prisma + Postgres), with the documented swaps in
    `MODULE_STRUCTURE.md` → "As built" and `PROJECT_AUDIT.md` §5.
 3. **Hosting target** for staging/production (Node server, Postgres 15+, Redis).
-4. **Object storage** choice for Phase 7 (S3-compatible: MinIO locally).
+4. **Object storage:** decided, Cloudflare R2 (MinIO locally). Still needed from you: an R2 bucket and API token for staging/production, and a private ClamAV host (`DOCUMENTS.md` §9–10).

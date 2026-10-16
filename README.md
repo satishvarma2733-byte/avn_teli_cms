@@ -12,7 +12,7 @@ reassignment, source tagging, the web-leads inbox) and fixes the gaps found in r
 (no activity timeline, no telephony, no WhatsApp, thin reporting, leaking data quality,
 no bulk actions, no real multi-tenant/RBAC hardening).
 
-> **Status:** Phases 1–6 (foundation, students and leads, follow-ups, dashboards and reports, web leads with LeadXP-compatible intake, import and export) are built and verified locally. Phases 7–8 (documents, automation) are not started. Code lives in [`avn_cms/`](avn_cms/). Live status and test results: [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md).
+> **Status:** Phases 1–7 (foundation, students and leads, follow-ups, dashboards and reports, web leads with LeadXP-compatible intake, import and export, documents vault) are built and verified locally; the documents vault was tested on MinIO and ClamAV, not yet on a real Cloudflare R2 bucket. Phase 8 (automation) is not started. Code lives in [`avn_cms/`](avn_cms/). Live status and test results: [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md).
 
 ---
 

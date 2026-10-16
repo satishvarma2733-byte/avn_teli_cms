@@ -41,6 +41,45 @@ services:
       - '127.0.0.1:51125:1025' # SMTP
       - '127.0.0.1:58125:8025' # web UI
 
+  # S3-compatible object storage standing in for Cloudflare R2 (documents vault). Production uses R2.
+  # Docker Hub no longer serves new minio/minio pulls; if this image is missing on your machine,
+  # point R2_ENDPOINT at any other S3-compatible server instead (docs/DOCUMENTS.md).
+  minio:
+    image: minio/minio:latest
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: avn_minio
+      MINIO_ROOT_PASSWORD: avn_minio_local_only
+      # Browsers upload straight to the bucket with presigned URLs, so the app origins must be allowed.
+      MINIO_API_CORS_ALLOW_ORIGIN: 'http://localhost:3300,http://localhost:3301'
+    ports:
+      - '127.0.0.1:19000:9000' # S3 API
+      - '127.0.0.1:19001:9001' # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Antivirus for uploaded documents (clamd). The first start downloads the signature database
+  # (a few minutes); files stay unavailable until a scan says they are clean.
+  clamav:
+    image: clamav/clamav:stable
+    ports:
+      - '127.0.0.1:33100:3310'
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+
 volumes:
   postgres-data:
   redis-data:
+  minio-data:
+  clamav-data:

@@ -1,7 +1,12 @@
 import { JOB_QUEUE, processJob, type JobKind, type JobPayload } from '@avn-cms/core';
 import { Worker, type ConnectionOptions, type Queue } from 'bullmq';
 
-import { expiredFilesSweepAllTenants, overdueSweepAllTenants, stuckJobsSweepAllTenants } from './jobs';
+import {
+  documentMaintenanceAllTenants,
+  expiredFilesSweepAllTenants,
+  overdueSweepAllTenants,
+  stuckJobsSweepAllTenants,
+} from './jobs';
 
 /**
  * The BullMQ side of the worker, kept apart from index.ts (which boots the process and owns
@@ -18,6 +23,8 @@ export const SYSTEM_JOBS = {
   'expired-files': 60 * 60_000,
   // Well under the 10 minutes of silence after which a claimed import/export counts as abandoned.
   'stuck-jobs': 2 * 60_000,
+  // Re-queues document scans that never ran, removes blocked/deleted files, drops abandoned uploads.
+  'document-maintenance': 2 * 60_000,
 } as const;
 export type SystemJobName = keyof typeof SYSTEM_JOBS;
 
@@ -35,6 +42,8 @@ export async function processSystemJob(name: string) {
       return expiredFilesSweepAllTenants();
     case 'stuck-jobs':
       return stuckJobsSweepAllTenants();
+    case 'document-maintenance':
+      return documentMaintenanceAllTenants();
     default:
       throw new Error(`Unknown job ${name}`);
   }

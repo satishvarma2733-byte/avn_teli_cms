@@ -7,6 +7,7 @@ export const ERROR_STATUS = {
   VALIDATION_ERROR: 422,
   RATE_LIMITED: 429,
   INTERNAL: 500,
+  UNAVAILABLE: 503,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;
@@ -33,3 +34,5 @@ export const forbidden = (message = 'You do not have permission to do that.') =>
 export const conflict = (message: string, details?: unknown) => new AppError('CONFLICT', message, details);
 export const invalid = (message: string, details?: unknown) =>
   new AppError('VALIDATION_ERROR', message, details);
+/** A service the request needs (document storage, the scanner) is not set up or not reachable. */
+export const unavailable = (message: string) => new AppError('UNAVAILABLE', message);

@@ -58,8 +58,7 @@ Visibility per role shown as `[A]` Tenant Admin · `[C]` Counselor · `[T]` Tele
 │   ├── /followups                   [A]        follow-up performance / overdue
 │   └── /me                          [C][T]     own numbers
 │
-├── /documents                      [A]        Educational Folders Vault
-│   └── /[folderId]                  [A]        files in folder
+├── /documents                      [A]        Folder vault: the agency's own files (?folder=<id> opens a folder)
 │
 ├── /imports                        [A]        CSV/XLSX import wizard + history
 │   ├── /new                         [A]        upload a file (step 1)
@@ -206,11 +205,18 @@ GET    /api/reports/followups      follow-up stats
 
 ### Documents
 ```
-GET    /api/folders                POST /api/folders     DELETE /api/folders/:id
-POST   /api/documents              (presigned upload init) 
-GET    /api/documents/:id/url      signed, expiring download URL
-DELETE /api/documents/:id
-GET    /api/students/:id/documents PATCH .../documents/:docType  (checklist status)
+GET    /api/folders                sub-folders + path (admins); POST create
+PATCH  /api/folders/:id            rename; DELETE only when empty
+GET    /api/documents              files in a folder, or a search (admins)
+POST   /api/documents              start an upload → presigned PUT URL (201)
+POST   /api/documents/:id/complete confirm the upload, queue the virus scan
+GET    /api/documents/:id          the document and its versions
+GET    /api/documents/:id/url      signed download URL (5 min); 409 until the scan is clean; audited
+DELETE /api/documents/:id          remove every version
+GET    /api/documents/stuck        files whose virus scan did not finish (admins)
+POST   /api/documents/:id/rescan   scan such a file again (admins; audited)
+GET    /api/students/:id/documents the checklist + other documents
+PATCH  /api/students/:id/documents/:docType   verify / reject / un-verify an item
 ```
 
 ### Users / admin

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 import { createClient } from '../../../packages/db/src/testing';
-import { as, expectAccessible, testPhone } from './helpers';
+import { as, expectAccessible, expectNoSidewaysScroll, testPhone } from './helpers';
 
 const csvFile = (rows: string[][]) => Buffer.from(rows.map((r) => r.join(',')).join('\n'), 'utf8');
 
@@ -70,6 +70,7 @@ test.describe('admin: import wizard', () => {
     await expect(page.getByRole('cell', { name: 'students.csv' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Finished' })).toBeVisible();
     await expectAccessible(page);
+    await expectNoSidewaysScroll(page);
   });
 });
 
@@ -191,6 +192,7 @@ test.describe('admin: exports', () => {
     await expect(page.getByRole('heading', { name: 'Exports' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Leads · Excel' }).first()).toBeVisible();
     await expectAccessible(page);
+    await expectNoSidewaysScroll(page);
   });
 });
 

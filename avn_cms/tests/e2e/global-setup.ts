@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { request, type FullConfig } from '@playwright/test';
 
+import { ensureBucket, objectStoreConfigured } from '../../packages/core/src/documents/object-store';
 import { resetTestDatabase } from '../../packages/db/src/testing';
 
 export const STATE_DIR = fileURLToPath(new URL('../../test-results/.auth/', import.meta.url));
@@ -36,6 +37,10 @@ export default async function globalSetup(config: FullConfig) {
       stdio: 'inherit',
     },
   );
+
+  // Documents go to a local S3-compatible server (MinIO); make sure the test bucket exists.
+  if (process.env['TEST_R2_BUCKET']) process.env['R2_BUCKET'] = process.env['TEST_R2_BUCKET'];
+  if (objectStoreConfigured()) await ensureBucket();
 
   mkdirSync(STATE_DIR, { recursive: true });
   const baseURL = config.projects[0]!.use.baseURL!;

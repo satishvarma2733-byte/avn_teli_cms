@@ -31,7 +31,8 @@
     "db:reset:test": "pnpm --filter @avn-cms/db reset:test",
     "smoke:webleads": "tsx scripts/smoke-webleads.ts",
     "test:e2e:only": "playwright test --config tests/e2e/playwright.config.ts",
-    "admin:create-superadmin": "tsx scripts/create-superadmin.ts"
+    "admin:create-superadmin": "tsx scripts/create-superadmin.ts",
+    "storage:setup": "tsx scripts/storage-setup.ts"
   },
   "devDependencies": {
     "@avn-cms/auth": "workspace:*",

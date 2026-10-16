@@ -401,6 +401,8 @@ export async function getLead(ctx: Ctx, leadId: string) {
         logDisposition: can(ctx, 'followup:logDisposition', resource),
         addNote: can(ctx, 'note:add', resource),
         delete: can(ctx, 'student:delete', resource),
+        documents: can(ctx, 'document:manage', resource),
+        verifyDocuments: can(ctx, 'studentDoc:verify', resource),
       },
     };
   });

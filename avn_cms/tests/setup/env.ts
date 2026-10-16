@@ -17,4 +17,6 @@ export function useTestDatabases(): void {
   // Tests never send email (the "not configured" path is what they exercise).
   delete process.env['SMTP_HOST'];
   delete process.env['SMTP_PORT'];
+  // Documents use their own bucket in tests, never the development one.
+  if (process.env['TEST_R2_BUCKET']) process.env['R2_BUCKET'] = process.env['TEST_R2_BUCKET'];
 }

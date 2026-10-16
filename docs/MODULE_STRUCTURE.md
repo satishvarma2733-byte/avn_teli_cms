@@ -43,7 +43,7 @@ code runs in a request and in a background job without duplication.
 | `turbo.json` | `pnpm -r` scripts | Fewer moving parts; Turborepo can be added without code changes |
 | Routes via `require-context.ts` + `authorize.ts` | `apps/web/src/lib/api.ts` → `route(options, handler)` | One gate: session → MFA → CSRF/origin → tenant ctx → rate limit → handler → envelope / errors |
 | One repository file per module | `*.repository.ts` where queries are shared (leads, activities, assignments); simpler modules query inside the service through the **scoped** client | The scoped client + RLS are the security boundary; ESLint still forbids the owner client and raw Prisma imports outside the allowed modules |
-| `docker-compose.yml` with MinIO | Postgres 17, Redis, Mailpit (no MinIO yet) | Object storage arrives with Phase 7 (documents) |
+| `docker-compose.yml` with MinIO | Postgres 17, Redis, Mailpit, MinIO and ClamAV | MinIO stands in for Cloudflare R2 locally; ClamAV scans uploaded documents (Phase 7) |
 
 Import boundaries are enforced by `avn_cms/eslint.config.js`: the RLS-bypassing owner client
 only in `packages/auth`, `core/platform`, the intake-credential lookup, worker system jobs,

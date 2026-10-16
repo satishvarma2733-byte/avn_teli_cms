@@ -152,6 +152,8 @@ enum ScanStatus {
   PENDING
   CLEAN
   INFECTED
+  /// The file is not what it claimed to be (wrong type or size); it never becomes available.
+  REJECTED
 
   @@map("scan_status")
 }
@@ -214,14 +216,14 @@ enum AutomationTrigger {
 // ── Platform ─────────────────────────────────────────────────────────────────
 
 model Plan {
-  id           String         @id @default(uuid()) @db.Uuid
-  code         PlanCode       @unique
-  name         String
-  limits       Json           @default("{}")
-  priceMinor   Int            @default(0) @map("price_minor")
-  currency     String         @default("INR") @db.Char(3)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  tenants      Tenant[]
+  id            String         @id @default(uuid()) @db.Uuid
+  code          PlanCode       @unique
+  name          String
+  limits        Json           @default("{}")
+  priceMinor    Int            @default(0) @map("price_minor")
+  currency      String         @default("INR") @db.Char(3)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenants       Tenant[]
   subscriptions Subscription[]
 
   @@map("plans")
@@ -287,31 +289,31 @@ model UsageCounter {
 // ── Identity ─────────────────────────────────────────────────────────────────
 
 model User {
-  id                String     @id @default(uuid()) @db.Uuid
+  id               String     @id @default(uuid()) @db.Uuid
   /// Null only for SUPER_ADMIN (platform user).
-  tenantId          String?    @map("tenant_id") @db.Uuid
-  tenant            Tenant?    @relation(fields: [tenantId], references: [id])
-  roleCode          RoleCode   @map("role_code")
-  name              String
-  email             String     @db.Citext
-  phoneE164         String?    @map("phone_e164")
-  passwordHash      String     @map("password_hash")
-  status            UserStatus @default(ACTIVE)
+  tenantId         String?    @map("tenant_id") @db.Uuid
+  tenant           Tenant?    @relation(fields: [tenantId], references: [id])
+  roleCode         RoleCode   @map("role_code")
+  name             String
+  email            String     @db.Citext
+  phoneE164        String?    @map("phone_e164")
+  passwordHash     String     @map("password_hash")
+  status           UserStatus @default(ACTIVE)
   /// TOTP secret, AES-256-GCM encrypted (packages/auth).
-  mfaSecret         String?    @map("mfa_secret")
-  mfaEnabledAt      DateTime?  @map("mfa_enabled_at") @db.Timestamptz(6)
-  lastLoginAt       DateTime?  @map("last_login_at") @db.Timestamptz(6)
-  failedLoginCount  Int        @default(0) @map("failed_login_count")
-  lockedUntil       DateTime?  @map("locked_until") @db.Timestamptz(6)
-  lastRoundRobinAt  DateTime?  @map("last_round_robin_at") @db.Timestamptz(6)
-  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  mfaSecret        String?    @map("mfa_secret")
+  mfaEnabledAt     DateTime?  @map("mfa_enabled_at") @db.Timestamptz(6)
+  lastLoginAt      DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  failedLoginCount Int        @default(0) @map("failed_login_count")
+  lockedUntil      DateTime?  @map("locked_until") @db.Timestamptz(6)
+  lastRoundRobinAt DateTime?  @map("last_round_robin_at") @db.Timestamptz(6)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?  @map("deleted_at") @db.Timestamptz(6)
 
-  sessions        Session[]
-  resetTokens     PasswordResetToken[]
-  assignments     LeadAssignment[]     @relation("assignee")
-  followUps       FollowUp[]           @relation("followup_assignee")
+  sessions    Session[]
+  resetTokens PasswordResetToken[]
+  assignments LeadAssignment[]     @relation("assignee")
+  followUps   FollowUp[]           @relation("followup_assignee")
 
   // UNIQUE NULLS NOT DISTINCT (tenant_id, email) is created in SQL (migration 0001).
   @@index([tenantId, roleCode, status])
@@ -319,23 +321,23 @@ model User {
 }
 
 model Session {
-  id                    String    @id @default(uuid()) @db.Uuid
-  userId                String    @map("user_id") @db.Uuid
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// SHA-256 of the opaque cookie token; the token itself is never stored.
-  tokenHash             String    @unique @map("token_hash")
+  tokenHash      String    @unique @map("token_hash")
   /// Per-session CSRF secret (double-submit token is derived from it).
-  csrfSecret            String    @map("csrf_secret")
+  csrfSecret     String    @map("csrf_secret")
   /// false until the second factor is checked for an MFA-enabled user.
-  mfaVerified           Boolean   @default(true) @map("mfa_verified")
+  mfaVerified    Boolean   @default(true) @map("mfa_verified")
   /// Super-admin impersonation: the tenant being acted as (audited).
-  actingTenantId        String?   @map("acting_tenant_id") @db.Uuid
-  ip                    String?
-  userAgent             String?   @map("user_agent")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastSeenAt            DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
-  expiresAt             DateTime  @map("expires_at") @db.Timestamptz(6)
-  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz(6)
+  actingTenantId String?   @map("acting_tenant_id") @db.Uuid
+  ip             String?
+  userAgent      String?   @map("user_agent")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
 
   @@index([userId, revokedAt])
   @@map("sessions")
@@ -357,9 +359,9 @@ model PasswordResetToken {
 // ── CRM core ─────────────────────────────────────────────────────────────────
 
 model LeadSource {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
   code     String
   label    String
   isActive Boolean @default(true) @map("is_active")
@@ -477,23 +479,23 @@ model LeadStatusHistory {
 }
 
 model FollowUp {
-  id           String          @id @default(uuid()) @db.Uuid
-  tenantId     String          @map("tenant_id") @db.Uuid
-  leadId       String          @map("lead_id") @db.Uuid
-  lead         Lead            @relation(fields: [leadId], references: [id])
-  scheduledAt  DateTime        @map("scheduled_at") @db.Timestamptz(6)
-  assigneeId   String          @map("assignee_id") @db.Uuid
-  assignee     User            @relation("followup_assignee", fields: [assigneeId], references: [id], onDelete: Restrict)
-  disposition  CallDisposition @default(SCHEDULED)
-  priority     Priority        @default(NORMAL)
-  outcomeNote  String?         @map("outcome_note")
-  completedAt  DateTime?       @map("completed_at") @db.Timestamptz(6)
-  isOverdue    Boolean         @default(false) @map("is_overdue")
-  escalatedTo  String?         @map("escalated_to") @db.Uuid
-  escalatedAt  DateTime?       @map("escalated_at") @db.Timestamptz(6)
-  createdById  String?         @map("created_by_id") @db.Uuid
-  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String          @id @default(uuid()) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  leadId      String          @map("lead_id") @db.Uuid
+  lead        Lead            @relation(fields: [leadId], references: [id])
+  scheduledAt DateTime        @map("scheduled_at") @db.Timestamptz(6)
+  assigneeId  String          @map("assignee_id") @db.Uuid
+  assignee    User            @relation("followup_assignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  disposition CallDisposition @default(SCHEDULED)
+  priority    Priority        @default(NORMAL)
+  outcomeNote String?         @map("outcome_note")
+  completedAt DateTime?       @map("completed_at") @db.Timestamptz(6)
+  isOverdue   Boolean         @default(false) @map("is_overdue")
+  escalatedTo String?         @map("escalated_to") @db.Uuid
+  escalatedAt DateTime?       @map("escalated_at") @db.Timestamptz(6)
+  createdById String?         @map("created_by_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([tenantId, assigneeId, scheduledAt])
   @@index([tenantId, leadId])
@@ -538,21 +540,21 @@ model Note {
 // ── Intake ───────────────────────────────────────────────────────────────────
 
 model IntakeCredential {
-  id                    String    @id @default(uuid()) @db.Uuid
-  tenantId              String    @map("tenant_id") @db.Uuid
-  tenant                Tenant    @relation(fields: [tenantId], references: [id])
-  name                  String
-  username              String    @unique
-  secretHash            String    @map("secret_hash")
-  previousSecretHash    String?   @map("previous_secret_hash")
-  previousValidUntil    DateTime? @map("previous_valid_until") @db.Timestamptz(6)
-  defaultSourceId       String?   @map("default_source_id") @db.Uuid
-  rateLimitPerMin       Int       @default(120) @map("rate_limit_per_min")
-  lastUsedAt            DateTime? @map("last_used_at") @db.Timestamptz(6)
-  useCount              BigInt    @default(0) @map("use_count")
-  createdById           String?   @map("created_by_id") @db.Uuid
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz(6)
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+  name               String
+  username           String    @unique
+  secretHash         String    @map("secret_hash")
+  previousSecretHash String?   @map("previous_secret_hash")
+  previousValidUntil DateTime? @map("previous_valid_until") @db.Timestamptz(6)
+  defaultSourceId    String?   @map("default_source_id") @db.Uuid
+  rateLimitPerMin    Int       @default(120) @map("rate_limit_per_min")
+  lastUsedAt         DateTime? @map("last_used_at") @db.Timestamptz(6)
+  useCount           BigInt    @default(0) @map("use_count")
+  createdById        String?   @map("created_by_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(6)
 
   webLeads WebLead[]
 
@@ -561,50 +563,50 @@ model IntakeCredential {
 }
 
 model WebLead {
-  id                    String            @id @default(uuid()) @db.Uuid
-  tenantId              String            @map("tenant_id") @db.Uuid
-  tenant                Tenant            @relation(fields: [tenantId], references: [id])
-  name                  String
-  phoneRaw              String            @map("phone_raw")
-  phoneE164             String?           @map("phone_e164")
-  email                 String?           @db.Citext
-  interestCountry       String?           @map("interest_country")
-  interestCourse        String?           @map("interest_course")
-  message               String?
-  sourceId              String?           @map("source_id") @db.Uuid
-  source                LeadSource?       @relation(fields: [sourceId], references: [id])
-  sourceLabel           String?           @map("source_label")
-  submittedAt           DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(6)
-  status                WebLeadStatus     @default(NEW)
-  dedupeMatchStudentId  String?           @map("dedupe_match_student_id") @db.Uuid
-  convertedLeadId       String?           @map("converted_lead_id") @db.Uuid
-  rawPayload            Json              @default("{}") @map("raw_payload")
-  intakeChannel         IntakeChannel     @default(PUBLIC_API) @map("intake_channel")
-  intakeCredentialId    String?           @map("intake_credential_id") @db.Uuid
-  intakeCredential      IntakeCredential? @relation(fields: [intakeCredentialId], references: [id])
-  city                  String?
-  neetScore             Int?              @map("neet_score")
-  neetStatus            String?           @map("neet_status")
-  education             String?
-  educationGroup        String?           @map("education_group")
-  submittedBy           String?           @map("submitted_by")
-  postSlug              String?           @map("post_slug")
-  gclid                 String?
-  campaignId            String?           @map("campaign_id")
-  pageUrl               String?           @map("page_url")
-  landingPage           String?           @map("landing_page")
-  utmSource             String?           @map("utm_source")
-  utmMedium             String?           @map("utm_medium")
-  utmCampaign           String?           @map("utm_campaign")
-  utmTerm               String?           @map("utm_term")
-  utmContent            String?           @map("utm_content")
-  formId                String?           @map("form_id")
-  sessionId             String?           @map("session_id")
-  qualityFlags          String[]          @default([]) @map("quality_flags")
-  idempotencyKey        String?           @map("idempotency_key")
-  reviewedById          String?           @map("reviewed_by_id") @db.Uuid
-  reviewedAt            DateTime?         @map("reviewed_at") @db.Timestamptz(6)
-  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                   String            @id @default(uuid()) @db.Uuid
+  tenantId             String            @map("tenant_id") @db.Uuid
+  tenant               Tenant            @relation(fields: [tenantId], references: [id])
+  name                 String
+  phoneRaw             String            @map("phone_raw")
+  phoneE164            String?           @map("phone_e164")
+  email                String?           @db.Citext
+  interestCountry      String?           @map("interest_country")
+  interestCourse       String?           @map("interest_course")
+  message              String?
+  sourceId             String?           @map("source_id") @db.Uuid
+  source               LeadSource?       @relation(fields: [sourceId], references: [id])
+  sourceLabel          String?           @map("source_label")
+  submittedAt          DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  status               WebLeadStatus     @default(NEW)
+  dedupeMatchStudentId String?           @map("dedupe_match_student_id") @db.Uuid
+  convertedLeadId      String?           @map("converted_lead_id") @db.Uuid
+  rawPayload           Json              @default("{}") @map("raw_payload")
+  intakeChannel        IntakeChannel     @default(PUBLIC_API) @map("intake_channel")
+  intakeCredentialId   String?           @map("intake_credential_id") @db.Uuid
+  intakeCredential     IntakeCredential? @relation(fields: [intakeCredentialId], references: [id])
+  city                 String?
+  neetScore            Int?              @map("neet_score")
+  neetStatus           String?           @map("neet_status")
+  education            String?
+  educationGroup       String?           @map("education_group")
+  submittedBy          String?           @map("submitted_by")
+  postSlug             String?           @map("post_slug")
+  gclid                String?
+  campaignId           String?           @map("campaign_id")
+  pageUrl              String?           @map("page_url")
+  landingPage          String?           @map("landing_page")
+  utmSource            String?           @map("utm_source")
+  utmMedium            String?           @map("utm_medium")
+  utmCampaign          String?           @map("utm_campaign")
+  utmTerm              String?           @map("utm_term")
+  utmContent           String?           @map("utm_content")
+  formId               String?           @map("form_id")
+  sessionId            String?           @map("session_id")
+  qualityFlags         String[]          @default([]) @map("quality_flags")
+  idempotencyKey       String?           @map("idempotency_key")
+  reviewedById         String?           @map("reviewed_by_id") @db.Uuid
+  reviewedAt           DateTime?         @map("reviewed_at") @db.Timestamptz(6)
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([tenantId, status, submittedAt(sort: Desc)])
   @@index([tenantId, phoneE164])
@@ -630,23 +632,38 @@ model Folder {
 }
 
 model Document {
-  id           String     @id @default(uuid()) @db.Uuid
-  tenantId     String     @map("tenant_id") @db.Uuid
-  folderId     String?    @map("folder_id") @db.Uuid
-  folder       Folder?    @relation(fields: [folderId], references: [id])
-  studentId    String?    @map("student_id") @db.Uuid
-  filename     String
-  mimeType     String     @map("mime_type")
-  sizeBytes    BigInt     @map("size_bytes")
-  storageKey   String     @map("storage_key")
-  scanStatus   ScanStatus @default(PENDING) @map("scan_status")
-  version      Int        @default(1)
-  uploadedById String?    @map("uploaded_by_id") @db.Uuid
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @map("tenant_id") @db.Uuid
+  folderId      String?         @map("folder_id") @db.Uuid
+  folder        Folder?         @relation(fields: [folderId], references: [id])
+  studentId     String?         @map("student_id") @db.Uuid
+  /// Every version of one document shares this id (the first version's own id).
+  seriesId      String          @map("series_id") @db.Uuid
+  /// The checklist item a student's document was uploaded for.
+  docType       StudentDocType? @map("doc_type")
+  filename      String
+  mimeType      String          @map("mime_type")
+  sizeBytes     BigInt          @map("size_bytes")
+  storageKey    String          @map("storage_key")
+  scanStatus    ScanStatus      @default(PENDING) @map("scan_status")
+  scanSignature String?         @map("scan_signature")
+  scanAttempts  Int             @default(0) @map("scan_attempts")
+  scanError     String?         @map("scan_error")
+  scannedAt     DateTime?       @map("scanned_at") @db.Timestamptz(6)
+  /// Null until the browser's upload to storage is confirmed.
+  uploadedAt    DateTime?       @map("uploaded_at") @db.Timestamptz(6)
+  version       Int             @default(1)
+  uploadedById  String?         @map("uploaded_by_id") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  /// When the stored object was removed after deletion.
+  purgedAt      DateTime?       @map("purged_at") @db.Timestamptz(6)
 
   @@index([tenantId, folderId])
   @@index([tenantId, studentId])
+  /// Two uploads of one document can never take the same version number.
+  @@unique([tenantId, seriesId, version])
+  @@index([tenantId, scanStatus, uploadedAt])
   @@map("documents")
 }
 
