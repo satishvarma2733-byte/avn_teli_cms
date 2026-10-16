@@ -103,8 +103,8 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
 
 ## Decisions requiring approval
 
-1. **Remote:** the repository (`Desktop\leadxp-rebuild`, branch `main`) has its first commit
-   (2026-10-16, repo-local identity `opsewings`) but no remote to push to yet.
+1. **Repository:** `main` is pushed to https://github.com/satishvarma2733-byte/avn_teli_cms
+   (2026-10-16, repo-local identity `opsewings`). No CI is configured yet.
 2. **Hosting target** for staging and production (Node server + Postgres + Redis).
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
 4. Next phase order: Import/Export (6) → Documents (7, needs S3/MinIO) → Automation (8).

@@ -268,8 +268,8 @@ The spec asks for 20 Markdown docs. Here's where each is produced so none is mis
 
 ## Open items before Phase 6
 
-1. **Remote:** the local repository at `Desktop\leadxp-rebuild` (branch `main`) has its first
-   commit (2026-10-16) but no remote — say where it should be pushed.
+1. **CI:** the code is on GitHub (`satishvarma2733-byte/avn_teli_cms`, branch `main`); add a
+   workflow that runs lint, typecheck, unit, integration and e2e on every push.
 2. **Stack:** built as written (Next.js + Prisma + Postgres), with the documented swaps in
    `MODULE_STRUCTURE.md` → "As built" and `PROJECT_AUDIT.md` §5.
 3. **Hosting target** for staging/production (Node server, Postgres 15+, Redis).
