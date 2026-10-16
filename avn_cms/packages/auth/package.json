@@ -1,0 +1,18 @@
+{
+  "name": "@avn-cms/auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@avn-cms/config": "workspace:*",
+    "@avn-cms/db": "workspace:*",
+    "@node-rs/argon2": "^2.2.1",
+    "zod": "^4.6.5"
+  }
+}

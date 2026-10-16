@@ -1,0 +1,54 @@
+import { NextResponse, type NextRequest } from 'next/server';
+
+/**
+ * Runs before every page request: per-request CSP nonce, and an optimistic redirect to
+ * /login when there is no session cookie at all. Real session checks happen on the server
+ * in every layout and route handler (this is not the authorization layer).
+ */
+const SESSION_COOKIE = 'avn_session';
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const protectedArea = pathname.startsWith('/app') || pathname.startsWith('/platform');
+  if (protectedArea && !request.cookies.get(SESSION_COOKIE)) {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('next', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const isDev = process.env.NODE_ENV === 'development';
+  // Inline style attributes are allowed (charts and the virtual table set them); scripts are
+  // nonce-only. Everything else is same-origin.
+  const csp = [
+    `default-src 'self'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? ` 'unsafe-eval'` : ''}`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' blob: data:`,
+    `font-src 'self'`,
+    `connect-src 'self'${isDev ? ' ws:' : ''}`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `frame-ancestors 'none'`,
+  ].join('; ');
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set('Content-Security-Policy', csp);
+  return response;
+}
+
+export const config = {
+  matcher: [
+    {
+      source: '/((?!api|_next/static|_next/image|favicon.ico|icon.svg).*)',
+      missing: [
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' },
+      ],
+    },
+  ],
+};

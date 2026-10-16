@@ -1,0 +1,5 @@
+# Keep LF everywhere (Prettier checks for LF), regardless of core.autocrlf on the machine.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,0 +1,10 @@
+node_modules
+.next
+packages/db/generated
+packages/db/prisma/migrations
+pnpm-lock.yaml
+playwright-report
+test-results
+apps/web/next-env.d.ts
+apps/web/.next
+tests/e2e/.auth

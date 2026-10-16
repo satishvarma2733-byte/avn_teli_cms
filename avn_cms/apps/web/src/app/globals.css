@@ -1,0 +1,124 @@
+@import 'tailwindcss';
+
+/*
+ * aVn CMS design tokens. Every colour in the UI comes from these variables, so light and
+ * dark themes stay consistent. Contrast pairs were chosen for WCAG AA on body text.
+ */
+:root {
+  --background: #f7f8fa;
+  --foreground: #111827;
+  --surface: #ffffff;
+  --surface-muted: #f1f3f6;
+  --border: #e3e6eb;
+  --input: #d5dae1;
+  --muted-foreground: #5b6474;
+  --primary: #4338ca;
+  --primary-hover: #3730a3;
+  --primary-foreground: #ffffff;
+  --primary-soft: #eef0ff;
+  --ring: #6366f1;
+  --success: #15803d;
+  --success-soft: #e9f7ee;
+  --warning: #b45309;
+  --warning-soft: #fdf3e2;
+  --danger: #b91c1c;
+  --danger-soft: #fdecec;
+  --info: #0369a1;
+  --info-soft: #e6f3fa;
+  --sidebar: #ffffff;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.06);
+  /* Data colour (validated with the dataviz palette checks against --surface). */
+  --chart-1: #2a78d6;
+  --chart-track: #eef1f5;
+  --chart-grid: #e8ebf0;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d1017;
+    --foreground: #e6e8ec;
+    --surface: #151922;
+    --surface-muted: #1b2030;
+    --border: #262c3a;
+    --input: #343b4d;
+    --muted-foreground: #9aa3b4;
+    --primary: #818cf8;
+    --primary-hover: #a5b4fc;
+    --primary-foreground: #0d1017;
+    --primary-soft: #1f2340;
+    --ring: #818cf8;
+    --success: #4ade80;
+    --success-soft: #12261a;
+    --warning: #fbbf24;
+    --warning-soft: #2a2110;
+    --danger: #f87171;
+    --danger-soft: #2c1414;
+    --info: #38bdf8;
+    --info-soft: #0f2330;
+    --sidebar: #11141c;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --chart-1: #3987e5;
+    --chart-track: #1d2230;
+    --chart-grid: #232937;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-sidebar: var(--sidebar);
+  --color-chart-1: var(--chart-1);
+  --color-chart-track: var(--chart-track);
+  --color-chart-grid: var(--chart-grid);
+  --shadow-card: var(--shadow);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial,
+    sans-serif;
+  --radius-card: 0.75rem;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

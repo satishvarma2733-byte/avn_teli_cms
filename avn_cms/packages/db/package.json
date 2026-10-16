@@ -1,0 +1,30 @@
+{
+  "name": "@avn-cms/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./owner": "./src/owner.ts",
+    "./enums": "./generated/prisma/enums.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "seed": "tsx prisma/seed.ts",
+    "reset:test": "tsx scripts/reset-test-db.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@avn-cms/config": "workspace:*",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0"
+  },
+  "devDependencies": {
+    "@node-rs/argon2": "^2.2.1",
+    "prisma": "7.10.0"
+  }
+}
