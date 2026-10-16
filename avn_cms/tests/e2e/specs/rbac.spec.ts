@@ -11,6 +11,8 @@ test.describe('telecaller', () => {
     await expect(nav.getByRole('link', { name: 'Users' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Settings' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'Imports' })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'Exports' })).toHaveCount(1);
   });
 
   test('the API refuses admin actions', async ({ page }) => {

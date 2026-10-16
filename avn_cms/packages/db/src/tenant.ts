@@ -25,6 +25,7 @@ export const TENANT_MODELS = [
   'StudentDocument',
   'ImportJob',
   'ExportJob',
+  'StoredFile',
   'Notification',
   'AutomationRule',
   'AutomationRun',

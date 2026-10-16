@@ -3,11 +3,9 @@
 > Live record. A module is **Verified** only when its behaviour runs and its checks pass.
 > Code: `avn_cms/`. Last updated: 2026-10-16.
 
-**Overall status: FOUNDATION IMPLEMENTED — CORE MODULES INCOMPLETE**
+**Overall status: PHASES 1–6 IMPLEMENTED — PHASES 7–8 NOT STARTED**
 
-Phases 1–5 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (with the gaps
-listed below); Phases 6–8 (import/export, documents, automation) are not started, so the
-documented scope is not complete and this is not yet ready for staging validation.
+Phases 1–6 of `DEVELOPMENT_PHASES.md` are implemented and verified locally (with the gaps listed below); Phases 7–8 (documents, automation) are not started, so the documented scope is not complete and this is not yet ready for staging validation.
 
 ## Phases
 
@@ -16,11 +14,11 @@ documented scope is not complete and this is not yet ready for staging validatio
 | 0 | Planning docs | Done | `docs/*.md` |
 | Discovery | Audit + requirements | Done | `PROJECT_AUDIT.md`, `REQUIREMENTS.md` |
 | 1 | Foundation: schema, RLS, auth, tenants, RBAC, shell | **Verified** | tenancy/auth integration suites; RBAC matrix unit test (every cell); e2e sign-in, CSP, RBAC |
-| 2 | Students/leads workspace & CRUD | **Verified** (one gap) | leads integration suite; e2e lead journey. Gap: 100k-row load test not run; CSV template endpoint not built (belongs with Phase 6) |
+| 2 | Students/leads workspace & CRUD | **Verified** (one gap) | leads integration suite; e2e lead journey. Gap: 100k-row load test not run (the 50,000-row import test is in Phase 6) |
 | 3 | Assignments + follow-up engine + timeline | **Verified** | follow-up integration suite (queue, dispositions, escalation sweep); e2e log-call flow |
 | 4 | Dashboards & reports | **Verified** (one gap) | reports reconciliation suite; e2e. Gap: no Redis caching / materialisation yet (not needed at current volumes) |
 | 5 | Web leads + LeadXP-compatible `/api/webleads` | **Verified locally** | 12 contract tests (both eWings payload shapes), HTTP smoke script 7/7, e2e intake → convert |
-| 6 | Import / export | Not started | |
+| 6 | Import / export | **Verified** (gap: a run cut off by a crash is not recovered automatically) | Migration `import_export` (`stored_files`, job states, RLS); core `imports/`, `exports/`, `storage/`, `jobs/`; import wizard (`/app/imports`), Export dialogs on Leads and Web leads, `/app/exports`; API routes; worker queue `avn-jobs`. Tests: import unit 10/10; imports int 7/7; 50k-row int 1/1 (50,100 rows: 3.3 s check, 93 s total); exports int 7/7; migration guards 3/3; e2e 4/4. See `IMPORT_EXPORT.md` |
 | 7 | Documents vault | Not started (tables exist) | |
 | 8 | Automation rules | Not started (tables exist). Built-in: round-robin assignment, overdue escalation | |
 | 9 | Security hardening | Partly | See security section |
@@ -39,6 +37,7 @@ documented scope is not complete and this is not yet ready for staging validatio
 | Worker (BullMQ repeatable overdue sweep + escalation notifications) | Verified (logic) | Sweep covered by integration test; the BullMQ loop itself was not run against Redis in a test |
 | Web leads inbox (status, flags, convert/attach, spam/reject) | Verified | |
 | Intake credentials (create/rotate with 24 h overlap/revoke) | Verified | |
+| Import wizard and export jobs (dry run before any write, duplicate modes, round robin, signed expiring downloads) | Verified | Problem reports; 50k-row exit test; role-limited exports |
 | Dashboards (role-aware) + Reports (funnel, sources, team, stage, calls) | Verified | Charts: one validated hue, HTML bars/columns, table view |
 | Users (invite, role, disable, reset, transfer-on-delete, delete) | Verified | Last-admin and self-change guards |
 | Settings (timezone, round-robin, uncontacted minutes, lead sources) | Verified (UI + API) | `uncontactedMinutes` is stored but only used once automations exist |
@@ -52,9 +51,9 @@ documented scope is not complete and this is not yet ready for staging validatio
 | Lint (incl. architecture import boundaries) | `pnpm lint` | pass, 0 warnings |
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
-| Unit | `pnpm test:unit` | **170 passed** (RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list) |
-| Integration (real Postgres, RLS) | `pnpm test:integration` | **57 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health) |
-| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **15 passed** |
+| Unit | `pnpm test:unit` | **182 passed** (RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping) |
+| Integration (real Postgres, RLS) | `pnpm test:integration` | **72 passed** (tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports) |
+| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **19 passed** (sign-in, leads, RBAC, users, web-leads intake, import wizard, exports) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
 
@@ -92,6 +91,7 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
   go-ahead (`pnpm --filter @avn-cms/db exec prisma migrate reset`, then `pnpm db:seed`).
 - Counselors see an empty Web leads inbox: "routed to them" needs a routing rule (Phase 8).
 - Source ROI shows conversion only: ad spend isn't recorded.
+- Imports: a run cut off by a crash (for example, the worker stops) stays RUNNING; there is no automatic recovery yet. See `IMPORT_EXPORT.md` §7.
 
 ## External dependencies / not in scope by decision
 
@@ -107,12 +107,12 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
    (2026-10-16, repo-local identity `opsewings`). No CI is configured yet.
 2. **Hosting target** for staging and production (Node server + Postgres + Redis).
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
-4. Next phase order: Import/Export (6) → Documents (7, needs S3/MinIO) → Automation (8).
+4. Next phase: Documents (7), which needs an object-storage choice (S3-compatible; MinIO locally). Automation (8) follows.
 
 ## Files
 
-Code: `avn_cms/` — 190 TypeScript/TSX/SQL/CSS source files (~15.8k lines) across
+Code: `avn_cms/` — 233 TypeScript/TSX/SQL/CSS source files (~22.1k lines, excluding generated code) across
 `apps/web`, `apps/worker`, `packages/{config,db,auth,core}`, `tests/`, `scripts/`.
-Docs created: `PROJECT_AUDIT.md`, `REQUIREMENTS.md`, `BUILD_STATUS.md`, `DEPLOYMENT.md`.
+Docs created: `PROJECT_AUDIT.md`, `REQUIREMENTS.md`, `BUILD_STATUS.md`, `DEPLOYMENT.md`, `IMPORT_EXPORT.md`.
 Docs updated: `README.md`, `ARCHITECTURE.md`, `MODULE_STRUCTURE.md`, `DEVELOPMENT_PHASES.md`,
 `WEBLEADS_COMPATIBILITY.md`.

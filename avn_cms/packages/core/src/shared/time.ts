@@ -44,6 +44,17 @@ export function dateRange(tz: string, from?: string, to?: string): { gte?: Date;
   return out;
 }
 
+/** A wall-clock time in `tz` (e.g. "15-08-2026 10:30" in Asia/Kolkata) → the UTC instant. */
+export function localToUtc(tz: string, y: number, mo: number, d: number, h = 0, mi = 0): Date | null {
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+  const guess = new Date(Date.UTC(y, mo - 1, d, h, mi));
+  if (guess.getUTCMonth() !== mo - 1 || guess.getUTCDate() !== d) return null; // 31 Feb etc.
+  // Two passes handle a DST change between the guess and the real instant.
+  let t = guess.getTime() - tzOffsetMs(tz, guess);
+  t = guess.getTime() - tzOffsetMs(tz, new Date(t));
+  return new Date(t);
+}
+
 export function tenantTimezone(settings: unknown): string {
   const tz = (settings as { timezone?: unknown } | null)?.timezone;
   if (typeof tz === 'string') {

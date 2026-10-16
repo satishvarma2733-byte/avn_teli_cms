@@ -297,6 +297,34 @@ export const intakeCredentialCreateSchema = z.object({
   defaultSourceId: optionalUuid,
 });
 
+// ── Import / export ──────────────────────────────────────────────────────────
+
+export const DUPLICATE_MODES = ['skip', 'update', 'merge'] as const;
+export type DuplicateMode = (typeof DUPLICATE_MODES)[number];
+
+export const importOptionsSchema = z.object({
+  /** Field key → zero-based column index (null = not imported). */
+  mapping: z.record(z.string(), z.number().int().min(0).max(200).nullable()),
+  defaultSourceId: uuid,
+  duplicateMode: z.enum(DUPLICATE_MODES).default('skip'),
+  /** Give rows without a counselor to the next counselor in turn. */
+  roundRobin: z.boolean().default(false),
+});
+export type ImportOptions = z.output<typeof importOptionsSchema>;
+
+export const importRunSchema = z.object({ duplicateMode: z.enum(DUPLICATE_MODES) });
+
+export const EXPORT_FORMATS = ['csv', 'xlsx', 'pdf'] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
+export const exportCreateSchema = z.object({
+  entity: z.enum(['leads', 'web_leads']),
+  format: z.enum(EXPORT_FORMATS),
+  /** Same filters as the workspace list (leads) or the inbox (web leads). */
+  filters: z.record(z.string(), z.string().max(300)).default({}),
+});
+export type ExportCreateDTO = z.output<typeof exportCreateSchema>;
+
 // ── Reports ──────────────────────────────────────────────────────────────────
 
 export const reportQuerySchema = z.object({

@@ -123,13 +123,18 @@ const SORTS = {
   updated: { field: 'updatedAt', dir: 'desc' },
 } as const;
 
-export async function listLeads(ctx: Ctx, q: LeadListQuery) {
+/**
+ * The workspace filter (scope + view + filters + search), shared by the list and by exports
+ * so an export always contains exactly what the user could see in the table.
+ */
+export async function buildLeadFilter(
+  db: TenantDb,
+  ctx: Ctx,
+  q: Omit<LeadListQuery, 'cursor' | 'limit' | 'sort'>,
+): Promise<Prisma.LeadWhereInput> {
   const scope = listScope(ctx, 'student:list');
   if (!scope) throw forbidden();
-  const sort = SORTS[q.sort];
-  const cursor = decodeKeyset(q.cursor, q.sort);
-
-  return withTenant(ctx.tenantId, async (db) => {
+  {
     const and: Prisma.LeadWhereInput[] = [{ deletedAt: null, student: { deletedAt: null } }];
     if (scope === 'own') and.push(ownFilter(ctx));
 
@@ -185,8 +190,17 @@ export async function listLeads(ctx: Ctx, q: LeadListQuery) {
         or.push({ student: { email: { contains: q.q, mode: 'insensitive' } } });
       and.push({ OR: or });
     }
+    return { AND: and };
+  }
+}
 
-    const filter: Prisma.LeadWhereInput = { AND: and };
+export async function listLeads(ctx: Ctx, q: LeadListQuery) {
+  if (!listScope(ctx, 'student:list')) throw forbidden();
+  const sort = SORTS[q.sort];
+  const cursor = decodeKeyset(q.cursor, q.sort);
+
+  return withTenant(ctx.tenantId, async (db) => {
+    const filter = await buildLeadFilter(db, ctx, q);
     const rows = await findLeads(
       db,
       { AND: [filter, keysetWhere(sort.field, sort.dir, cursor)] },

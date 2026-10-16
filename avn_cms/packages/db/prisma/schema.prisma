@@ -180,12 +180,26 @@ enum StudentDocStatus {
 }
 
 enum JobStatus {
+  /// Import wizard: file uploaded, columns not yet confirmed.
+  DRAFT
+  /// Import wizard: dry run in progress / finished (nothing written yet).
+  VALIDATING
+  VALIDATED
   QUEUED
   RUNNING
   DONE
   FAILED
+  CANCELED
 
   @@map("job_status")
+}
+
+enum FilePurpose {
+  IMPORT_UPLOAD
+  IMPORT_ERRORS
+  EXPORT
+
+  @@map("file_purpose")
 }
 
 enum AutomationTrigger {
@@ -385,6 +399,9 @@ model Student {
   @@index([tenantId, email])
   @@index([tenantId, state, district])
   @@index([tenantId, createdAt(sort: Desc), id])
+  // Fuzzy search (pg_trgm). Declared here so Prisma never generates a DROP for them.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "students_name_trgm")
+  @@index([phoneE164(ops: raw("gin_trgm_ops"))], type: Gin, map: "students_phone_trgm")
   @@map("students")
 }
 
@@ -650,6 +667,25 @@ model StudentDocument {
 }
 
 // ── Jobs, notifications, automation, audit ───────────────────────────────────
+
+/// Job files (import uploads, error reports, exports) kept in Postgres until object storage
+/// arrives with the documents vault (Phase 7). Tenant-scoped with RLS; exports expire.
+model StoredFile {
+  id          String      @id @default(uuid()) @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  purpose     FilePurpose
+  filename    String
+  mimeType    String      @map("mime_type")
+  sizeBytes   Int         @map("size_bytes")
+  data        Bytes
+  createdById String?     @map("created_by_id") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt   DateTime?   @map("expires_at") @db.Timestamptz(6)
+
+  @@index([tenantId, purpose, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("stored_files")
+}
 
 model ImportJob {
   id            String    @id @default(uuid()) @db.Uuid

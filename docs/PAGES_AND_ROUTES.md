@@ -62,6 +62,9 @@ Visibility per role shown as `[A]` Tenant Admin · `[C]` Counselor · `[T]` Tele
 │   └── /[folderId]                  [A]        files in folder
 │
 ├── /imports                        [A]        CSV/XLSX import wizard + history
+│   ├── /new                         [A]        upload a file (step 1)
+│   └── /[id]                        [A]        map columns, check, import, results
+├── /exports                        [A][C][T]  your exports and their download links
 │
 ├── /automations                    [A]        rule builder + run log
 │
@@ -179,9 +182,15 @@ field-normalising adapter in front of it.
 ### Import / export
 ```
 POST   /api/imports                upload → returns job id
-GET    /api/imports/:id            status + error report link
+GET    /api/imports                your workspace's imports (newest first)
+GET    /api/imports/:id            status, check results, error report link
+POST   /api/imports/:id/validate   confirm the column mapping and run the check (202)
+POST   /api/imports/:id/run        start the import with a duplicate mode (202)
+DELETE /api/imports/:id            cancel before the run starts
 POST   /api/exports                { entity, filters, format: csv|xlsx|pdf } → job id
-GET    /api/exports/:id            signed download when ready
+GET    /api/exports                your exports (newest 20)
+GET    /api/exports/:id            status; a fresh download link when ready
+GET    /api/files/:id              signed download (exp, sig); 410 once expired
 GET    /api/students/template      downloadable CSV template
 ```
 

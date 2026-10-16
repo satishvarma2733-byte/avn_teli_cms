@@ -1,7 +1,17 @@
 import { can, type Action, type PolicyCtx } from '@avn-cms/core/policy';
 
 export type NavIcon =
-  'dashboard' | 'leads' | 'followups' | 'webleads' | 'reports' | 'users' | 'audit' | 'settings' | 'account';
+  | 'dashboard'
+  | 'leads'
+  | 'followups'
+  | 'webleads'
+  | 'reports'
+  | 'imports'
+  | 'exports'
+  | 'users'
+  | 'audit'
+  | 'settings'
+  | 'account';
 
 export interface NavItem {
   href: string;
@@ -16,6 +26,8 @@ const ITEMS: (NavItem & { action: Action })[] = [
   { href: '/app/followups', label: 'Follow-ups', icon: 'followups', action: 'followup:view' },
   { href: '/app/web-leads', label: 'Web leads', icon: 'webleads', action: 'webLead:view' },
   { href: '/app/reports', label: 'Reports', icon: 'reports', action: 'report:viewOwn' },
+  { href: '/app/imports', label: 'Imports', icon: 'imports', action: 'import:run' },
+  { href: '/app/exports', label: 'Exports', icon: 'exports', action: 'export:run' },
   { href: '/app/users', label: 'Users', icon: 'users', action: 'user:list' },
   { href: '/app/audit', label: 'Audit log', icon: 'audit', action: 'audit:view' },
   { href: '/app/settings', label: 'Settings', icon: 'settings', action: 'settings:manage' },

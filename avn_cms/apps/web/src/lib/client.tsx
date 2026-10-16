@@ -22,15 +22,18 @@ export async function apiRequest<T>(
   init: { method?: string; body?: unknown; csrf?: string; signal?: AbortSignal } = {},
 ): Promise<ApiResult<T>> {
   const method = init.method ?? (init.body === undefined ? 'GET' : 'POST');
+  // File uploads go as multipart (the browser sets the boundary header itself).
+  const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData;
   try {
     const res = await fetch(path, {
       method,
       headers: {
         Accept: 'application/json',
-        ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(init.body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),
         ...(init.csrf ? { 'x-csrf-token': init.csrf } : {}),
       },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body:
+        init.body === undefined ? undefined : isForm ? (init.body as FormData) : JSON.stringify(init.body),
       credentials: 'same-origin',
       signal: init.signal,
     });

@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./policy": "./src/policy/index.ts",
     "./shared": "./src/shared/index.ts",
-    "./schemas": "./src/schemas.ts"
+    "./schemas": "./src/schemas.ts",
+    "./import-fields": "./src/imports/fields.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
@@ -16,12 +17,18 @@
     "@avn-cms/auth": "workspace:*",
     "@avn-cms/config": "workspace:*",
     "@avn-cms/db": "workspace:*",
+    "bullmq": "6.3.9",
+    "csv-parse": "^6.1.0",
+    "csv-stringify": "^6.6.0",
+    "exceljs": "^4.4.0",
     "ioredis": "^6.0.0",
     "libphonenumber-js": "^1.12.0",
     "nodemailer": "^7.0.0",
+    "pdfkit": "^0.17.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/nodemailer": "^7.0.0"
+    "@types/nodemailer": "^7.0.0",
+    "@types/pdfkit": "^0.17.0"
   }
 }

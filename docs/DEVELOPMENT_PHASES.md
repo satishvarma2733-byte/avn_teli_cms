@@ -5,10 +5,7 @@
 > produces. No phase starts before the previous one's exit criteria are green
 > (`lint` + `typecheck` + `test` + `test:e2e`).
 
-**Status (2026-10-16):** Phases 1–5 built and verified locally (lint, typecheck, 170 unit,
-57 integration, 15 e2e — see [`BUILD_STATUS.md`](BUILD_STATUS.md) for evidence and the
-remaining gaps: 100k-row load test, report caching). Phases 6–10 not started, except the
-pieces noted there (round-robin, overdue escalation, health check, deployment guide).
+**Status (2026-10-16):** Phases 1–6 built and verified locally (lint, typecheck, format, 182 unit, 72 integration, 19 e2e — see [`BUILD_STATUS.md`](BUILD_STATUS.md) for evidence and the remaining gaps: 100k-row load test, report caching, crash recovery for interrupted imports). Phases 7–10 not started, except the pieces noted there (round-robin, overdue escalation, health check, deployment guide).
 
 **Rule for every phase (from the spec):**
 *Before* — explain what will be built, list files to create/change, explain DB changes,
@@ -161,6 +158,8 @@ behavior is honored; exports stream from a job, never block a request.
 
 **Docs:** `IMPORT_EXPORT.md`.
 
+**Status (2026-10-16):** Verified locally: lint, typecheck, format, 182 unit, 72 integration (including the 50,000-row import), 19 e2e. Known gap: a run cut off by a crash is not recovered automatically (see `IMPORT_EXPORT.md` §7).
+
 ---
 
 ## Phase 7 — Documents
@@ -266,7 +265,7 @@ The spec asks for 20 Markdown docs. Here's where each is produced so none is mis
 
 ---
 
-## Open items before Phase 6
+## Open items
 
 1. **CI:** the code is on GitHub (`satishvarma2733-byte/avn_teli_cms`, branch `main`); add a
    workflow that runs lint, typecheck, unit, integration and e2e on every push.

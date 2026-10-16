@@ -18,6 +18,8 @@ import { useApi } from '@/lib/client';
 import { formatDate, formatDateTime, formatPhone } from '@/lib/format';
 import { useDirectory } from '@/lib/use-directory';
 
+import { LEAD_FILTER_KEYS } from './filter-keys';
+
 interface Row {
   id: string;
   stage: LeadStage;
@@ -51,17 +53,6 @@ const VIEWS: { id: View; label: string }[] = [
   { id: 'closed', label: 'Closed' },
 ];
 
-const FILTER_KEYS = [
-  'view',
-  'q',
-  'stage',
-  'sourceId',
-  'counselorId',
-  'telecallerId',
-  'state',
-  'sort',
-] as const;
-
 export function LeadsWorkspace({
   role,
   canBulk,
@@ -76,7 +67,7 @@ export function LeadsWorkspace({
   const pathname = usePathname();
   const params = useSearchParams();
   const filters = useMemo(
-    () => Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? ''])),
+    () => Object.fromEntries(LEAD_FILTER_KEYS.map((k) => [k, params.get(k) ?? ''])),
     [params],
   );
   const view = (filters['view'] || 'all') as View;
@@ -117,7 +108,7 @@ export function LeadsWorkspace({
 
   const queryString = useMemo(() => {
     const qs = new URLSearchParams();
-    for (const k of FILTER_KEYS) if (filters[k]) qs.set(k, filters[k]!);
+    for (const k of LEAD_FILTER_KEYS) if (filters[k]) qs.set(k, filters[k]!);
     qs.set('limit', '50');
     return qs.toString();
   }, [filters]);

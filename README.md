@@ -12,11 +12,7 @@ reassignment, source tagging, the web-leads inbox) and fixes the gaps found in r
 (no activity timeline, no telephony, no WhatsApp, thin reporting, leaking data quality,
 no bulk actions, no real multi-tenant/RBAC hardening).
 
-> **Status:** Foundation implemented — core modules incomplete. Phases 1–5 (foundation,
-> students/leads, follow-ups, dashboards/reports, web leads with LeadXP-compatible intake)
-> are built and verified locally; Phases 6–8 (import/export, documents, automation) are not
-> started. Code lives in [`avn_cms/`](avn_cms/). Live status and test results:
-> [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md).
+> **Status:** Phases 1–6 (foundation, students and leads, follow-ups, dashboards and reports, web leads with LeadXP-compatible intake, import and export) are built and verified locally. Phases 7–8 (documents, automation) are not started. Code lives in [`avn_cms/`](avn_cms/). Live status and test results: [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md).
 
 ---
 
@@ -89,7 +85,7 @@ leadxp-rebuild/
     └── scripts/                  intake smoke test, super-admin bootstrap
 ```
 
-Later phases add the remaining spec docs (`FEATURES.md`, `IMPORT_EXPORT.md`,
+Later phases add the remaining spec docs (`FEATURES.md`,
 `SECURITY.md`, `TEST_PLAN.md`, …) as their modules are built.
 
 ---

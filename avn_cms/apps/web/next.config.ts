@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   typedRoutes: false,
   // Native / Node-only modules stay outside the server bundle.
-  serverExternalPackages: ['@node-rs/argon2', 'pg', 'ioredis', 'nodemailer'],
+  serverExternalPackages: ['@node-rs/argon2', 'pg', 'ioredis', 'nodemailer', 'bullmq', 'pdfkit', 'exceljs'],
   async headers() {
     return [
       {
