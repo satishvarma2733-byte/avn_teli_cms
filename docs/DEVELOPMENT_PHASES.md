@@ -268,8 +268,8 @@ The spec asks for 20 Markdown docs. Here's where each is produced so none is mis
 
 ## Open items before Phase 6
 
-1. **Commits:** a local repository now exists at `Desktop\leadxp-rebuild` (branch `main`),
-   with no commits and no git identity yet — say who commits and where it is pushed.
+1. **Remote:** the local repository at `Desktop\leadxp-rebuild` (branch `main`) has its first
+   commit (2026-10-16) but no remote — say where it should be pushed.
 2. **Stack:** built as written (Next.js + Prisma + Postgres), with the documented swaps in
    `MODULE_STRUCTURE.md` → "As built" and `PROJECT_AUDIT.md` §5.
 3. **Hosting target** for staging/production (Node server, Postgres 15+, Redis).

@@ -103,8 +103,8 @@ MFA recovery codes; per-tenant `X-Forwarded-For` trust configuration.
 
 ## Decisions requiring approval
 
-1. **Commit policy:** the new repository (`Desktop\leadxp-rebuild`, branch `main`) has no
-   commits yet, and no git identity is configured.
+1. **Remote:** the repository (`Desktop\leadxp-rebuild`, branch `main`) has its first commit
+   (2026-10-16, repo-local identity `opsewings`) but no remote to push to yet.
 2. **Hosting target** for staging and production (Node server + Postgres + Redis).
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
 4. Next phase order: Import/Export (6) → Documents (7, needs S3/MinIO) → Automation (8).
