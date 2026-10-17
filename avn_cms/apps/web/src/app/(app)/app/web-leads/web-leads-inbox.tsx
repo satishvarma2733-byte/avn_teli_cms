@@ -37,6 +37,8 @@ interface WebLead {
   postSlug: string | null;
   qualityFlags: string[];
   source: { id: string; label: string } | null;
+  /** The counselor an automation rule (or an admin) sent this enquiry to. */
+  routedToName: string | null;
 }
 
 const TABS: { id: Status | ''; label: string }[] = [
@@ -62,7 +64,7 @@ const FLAG_LABEL: Record<string, string> = {
   INVALID_NEET_SCORE: 'Odd NEET score',
 };
 
-export function WebLeadsInbox() {
+export function WebLeadsInbox({ isAdmin }: { isAdmin: boolean }) {
   const api = useApi();
   const router = useRouter();
   const pathname = usePathname();
@@ -214,6 +216,7 @@ export function WebLeadsInbox() {
                     {w.utmCampaign ? ` · campaign ${w.utmCampaign}` : ''}
                     {w.gclid ? ' · Google click' : ''}
                     {w.postSlug ? ` · blog: ${w.postSlug}` : ''}
+                    {w.routedToName ? ` · routed to ${isAdmin ? w.routedToName : 'you'}` : ''}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -229,17 +232,17 @@ export function WebLeadsInbox() {
                       <Button size="sm" onClick={() => setConverting(w)}>
                         {w.dedupeMatchStudentId ? 'Attach to student' : 'Convert'}
                       </Button>
-                      {w.status !== 'SPAM' && (
+                      {isAdmin && w.status !== 'SPAM' && (
                         <Button size="sm" variant="secondary" onClick={() => mark(w, 'SPAM')}>
                           Spam
                         </Button>
                       )}
-                      {w.status !== 'REJECTED' && (
+                      {isAdmin && w.status !== 'REJECTED' && (
                         <Button size="sm" variant="ghost" onClick={() => mark(w, 'REJECTED')}>
                           Reject
                         </Button>
                       )}
-                      {(w.status === 'SPAM' || w.status === 'REJECTED') && (
+                      {isAdmin && (w.status === 'SPAM' || w.status === 'REJECTED') && (
                         <Button size="sm" variant="ghost" onClick={() => mark(w, 'NEW')}>
                           Restore
                         </Button>
@@ -263,6 +266,7 @@ export function WebLeadsInbox() {
       {converting && (
         <ConvertDialog
           item={converting}
+          isAdmin={isAdmin}
           onClose={() => setConverting(null)}
           onDone={(leadId, attached) => {
             setConverting(null);
@@ -287,16 +291,19 @@ export function WebLeadsInbox() {
 
 function ConvertDialog({
   item,
+  isAdmin,
   onClose,
   onDone,
 }: {
   item: WebLead;
+  isAdmin: boolean;
   onClose: () => void;
   onDone: (leadId: string, attached: boolean) => void;
 }) {
   const api = useApi();
-  const counselors = useDirectory('counselors');
-  const telecallers = useDirectory('telecallers');
+  // Only admins choose who gets the lead; a counselor converting takes it themselves.
+  const counselors = useDirectory('counselors', isAdmin);
+  const telecallers = useDirectory('telecallers', isAdmin);
   const [counselorId, setCounselorId] = useState('');
   const [telecallerId, setTelecallerId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -341,30 +348,44 @@ function ConvertDialog({
     >
       <div className="space-y-4">
         {error && <Alert tone="danger">{error}</Alert>}
-        <Field
-          id="cv-counselor"
-          label="Counselor"
-          hint="Leave empty to use round-robin, if it is switched on."
-        >
-          <Select id="cv-counselor" value={counselorId} onChange={(e) => setCounselorId(e.target.value)}>
-            <option value="">Auto / keep current</option>
-            {counselors.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field id="cv-telecaller" label="Telecaller">
-          <Select id="cv-telecaller" value={telecallerId} onChange={(e) => setTelecallerId(e.target.value)}>
-            <option value="">None</option>
-            {telecallers.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {isAdmin ? (
+          <>
+            <Field
+              id="cv-counselor"
+              label="Counselor"
+              hint={
+                item.routedToName
+                  ? `Leave empty to give it to ${item.routedToName}, who it was routed to.`
+                  : 'Leave empty to use round-robin, if it is switched on.'
+              }
+            >
+              <Select id="cv-counselor" value={counselorId} onChange={(e) => setCounselorId(e.target.value)}>
+                <option value="">Auto / keep current</option>
+                {counselors.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field id="cv-telecaller" label="Telecaller">
+              <Select
+                id="cv-telecaller"
+                value={telecallerId}
+                onChange={(e) => setTelecallerId(e.target.value)}
+              >
+                <option value="">None</option>
+                {telecallers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">The new lead will be assigned to you.</p>
+        )}
       </div>
     </Dialog>
   );

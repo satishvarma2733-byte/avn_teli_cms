@@ -11,6 +11,7 @@ import type { Prisma, TenantStatus } from '@avn-cms/db';
 import { ownerDb } from '@avn-cms/db/owner';
 import { z } from 'zod';
 
+import { starterRuleRows } from '../automation/starter';
 import { sendMail } from '../communications/email';
 import { conflict, forbidden, notFound } from '../shared/errors';
 
@@ -126,6 +127,10 @@ export async function createTenant(
         email: dto.adminEmail,
         passwordHash: await hashPassword(randomToken()),
       },
+    });
+    // Every new workspace starts with the starter automation rules (all on; the admin can change them).
+    await tx.automationRule.createMany({
+      data: starterRuleRows(tenant.id, null) as Prisma.AutomationRuleCreateManyInput[],
     });
     return { tenant, admin };
   });

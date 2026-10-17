@@ -169,7 +169,7 @@ product, not the database:
 | `documents` | folders, files, student document checklist, signed URLs, scan | students, audit |
 | `reports` | funnel, source ROI, agent performance, status distribution | leads, followups |
 | `notifications` | in-app + push/email reminders and alerts | followups, automations |
-| `automations` | rule engine (triggers → conditions → actions) | leads, followups, notifications |
+| `automations` | rule engine (triggers → conditions → actions); runs recorded with the change, carried out by a job (`AUTOMATION.md`) | leads, followups, notifications |
 | `audit` | audit log writer + viewer | all mutating services |
 | `billing` | plans, subscriptions, usage metering, invoices | tenants (loosely coupled) |
 | `communications` | WhatsApp / email / SMS / click-to-call adapters | activities, students |

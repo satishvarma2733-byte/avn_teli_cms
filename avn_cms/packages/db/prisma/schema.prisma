@@ -606,8 +606,12 @@ model WebLead {
   idempotencyKey       String?           @map("idempotency_key")
   reviewedById         String?           @map("reviewed_by_id") @db.Uuid
   reviewedAt           DateTime?         @map("reviewed_at") @db.Timestamptz(6)
+  /// The counselor this submission was routed to (by an automation rule); they see it in their inbox.
+  routedToId           String?           @map("routed_to_id") @db.Uuid
+  routedAt             DateTime?         @map("routed_at") @db.Timestamptz(6)
   createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@index([tenantId, routedToId, status])
   @@index([tenantId, status, submittedAt(sort: Desc)])
   @@index([tenantId, phoneE164])
   @@index([tenantId, utmCampaign])
@@ -659,10 +663,10 @@ model Document {
   /// When the stored object was removed after deletion.
   purgedAt      DateTime?       @map("purged_at") @db.Timestamptz(6)
 
-  @@index([tenantId, folderId])
-  @@index([tenantId, studentId])
   /// Two uploads of one document can never take the same version number.
   @@unique([tenantId, seriesId, version])
+  @@index([tenantId, folderId])
+  @@index([tenantId, studentId])
   @@index([tenantId, scanStatus, uploadedAt])
   @@map("documents")
 }
@@ -766,27 +770,40 @@ model AutomationRule {
   trigger     AutomationTrigger
   conditions  Json              @default("{}")
   actions     Json              @default("[]")
+  /// Set for the starter rules, so installing them twice never duplicates them.
+  starterKey  String?           @map("starter_key")
   createdById String?           @map("created_by_id") @db.Uuid
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   runs        AutomationRun[]
 
+  @@unique([tenantId, starterKey])
   @@index([tenantId, trigger, isActive])
   @@map("automation_rules")
 }
 
 model AutomationRun {
-  id        String         @id @default(uuid()) @db.Uuid
-  tenantId  String         @map("tenant_id") @db.Uuid
-  ruleId    String         @map("rule_id") @db.Uuid
-  rule      AutomationRule @relation(fields: [ruleId], references: [id])
-  event     String
-  entityId  String?        @map("entity_id") @db.Uuid
-  status    String
-  result    Json           @default("{}")
-  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  id         String         @id @default(uuid()) @db.Uuid
+  tenantId   String         @map("tenant_id") @db.Uuid
+  ruleId     String         @map("rule_id") @db.Uuid
+  rule       AutomationRule @relation(fields: [ruleId], references: [id])
+  event      String
+  entityId   String?        @map("entity_id") @db.Uuid
+  /// PENDING → RUNNING → DONE | SKIPPED | FAILED
+  status     String
+  result     Json           @default("{}")
+  /// What happened, as the rule saw it (names, ids); the actions work from this.
+  payload    Json           @default("{}")
+  /// One run per rule per thing: the same lead or call is never handled twice by one rule.
+  dedupeKey  String         @map("dedupe_key")
+  attempts   Int            @default(0)
+  startedAt  DateTime?      @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime?      @map("finished_at") @db.Timestamptz(6)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@unique([tenantId, ruleId, dedupeKey])
   @@index([tenantId, ruleId, createdAt(sort: Desc)])
+  @@index([tenantId, status, createdAt])
   @@map("automation_runs")
 }
 

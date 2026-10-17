@@ -12,7 +12,7 @@ import { Redis } from 'ioredis';
  */
 export const JOB_QUEUE = 'avn-jobs';
 
-export type JobKind = 'import.validate' | 'import.run' | 'export.run' | 'document.scan';
+export type JobKind = 'import.validate' | 'import.run' | 'export.run' | 'document.scan' | 'automation.run';
 export interface JobPayload {
   tenantId: string;
   jobId: string;
@@ -97,19 +97,32 @@ export async function enqueue(
     await handler(kind, payload);
     return;
   }
-  setImmediate(() => {
-    handler(kind, payload).catch((err: unknown) =>
-      console.error(
-        JSON.stringify({
-          level: 'error',
-          msg: 'in-process job failed',
-          kind,
-          jobId: payload.jobId,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      ),
-    );
+  const running = new Promise<void>((resolve) => {
+    setImmediate(() => {
+      handler(kind, payload)
+        .catch((err: unknown) =>
+          console.error(
+            JSON.stringify({
+              level: 'error',
+              msg: 'in-process job failed',
+              kind,
+              jobId: payload.jobId,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          ),
+        )
+        .finally(resolve);
+    });
   });
+  inProcessJobs.add(running);
+  void running.finally(() => inProcessJobs.delete(running));
+}
+
+const inProcessJobs = new Set<Promise<void>>();
+
+/** Waits for jobs started in this process (the no-Redis fallback) to finish, including any they start. */
+export async function drainInProcessJobs(): Promise<void> {
+  while (inProcessJobs.size > 0) await Promise.all([...inProcessJobs]);
 }
 
 export async function closeQueue(): Promise<void> {

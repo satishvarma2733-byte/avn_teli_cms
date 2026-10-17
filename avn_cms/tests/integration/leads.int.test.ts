@@ -310,7 +310,7 @@ describe('follow-ups', () => {
     ).resolves.toBeTruthy();
   });
 
-  it('overdue sweep flags and escalates once, notifying the admin', async () => {
+  it('overdue sweep flags calls once; escalating them is an automation rule (tests/integration/automation)', async () => {
     const { lead } = await makeLead(tenant.id, { telecallerId: telecaller.id });
     await ownerDb().followUp.create({
       data: {
@@ -322,10 +322,10 @@ describe('follow-ups', () => {
     });
     const { withTenant } = await import('@avn-cms/db');
     const first = await withTenant(tenant.id, (db) => followups.sweepOverdue(db));
-    expect(first).toEqual({ flagged: 1, escalated: 1 });
+    expect(first).toEqual({ flagged: 1 });
     const second = await withTenant(tenant.id, (db) => followups.sweepOverdue(db));
-    expect(second).toEqual({ flagged: 0, escalated: 0 });
-    const notes = await ownerDb().notification.findMany({ where: { tenantId: tenant.id } });
-    expect(notes.map((n) => n.userId).sort()).toEqual([admin.id, telecaller.id].sort());
+    expect(second).toEqual({ flagged: 0 });
+    // The sweep only marks the call; telling people is the escalation rule's job.
+    expect(await ownerDb().notification.count({ where: { tenantId: tenant.id } })).toBe(0);
   });
 });

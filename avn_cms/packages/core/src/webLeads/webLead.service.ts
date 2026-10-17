@@ -2,6 +2,7 @@ import { withTenant, type IntakeChannel, type Prisma, type WebLeadStatus } from 
 import type { z } from 'zod';
 
 import { recordActivity } from '../activities/activity.repository';
+import { emitAutomation } from '../automation/emit';
 import {
   assertAssignable,
   pickRoundRobin,
@@ -113,6 +114,20 @@ export async function ingest(input: {
       } as Prisma.WebLeadUncheckedCreateInput,
       select: { id: true, status: true },
     });
+    // Rules (for example "route to a counselor") react to the new submission once it is committed.
+    await emitAutomation(db, input.tenantId, {
+      trigger: 'WEB_LEAD_CREATED',
+      entityId: row.id,
+      dedupeKey: row.id,
+      payload: () => ({
+        webLeadId: row.id,
+        name: dto.name,
+        status: row.status,
+        sourceId: source?.id ?? null,
+        country: dto.interestCountry ?? null,
+        neetScore: dto.neetScore ?? null,
+      }),
+    });
     return { id: row.id, status: row.status, replay: false };
   });
 }
@@ -141,17 +156,19 @@ const listSelect = {
   gclid: true,
   postSlug: true,
   qualityFlags: true,
+  routedToId: true,
+  routedAt: true,
   source: { select: { id: true, label: true } },
 } satisfies Prisma.WebLeadSelect;
 
 export async function listInbox(ctx: Ctx, q: z.output<typeof webLeadListQuerySchema>) {
   const scope = listScope(ctx, 'webLead:view');
   if (!scope) throw forbidden();
-  // Counselors see web leads "if routed to them": routing isn't modelled yet, so none (RBAC note).
-  if (scope === 'own') return { items: [], nextCursor: null, counts: {} as Record<string, number> };
   const cursor = decodeKeyset(q.cursor, 'inbox');
   return withTenant(ctx.tenantId, async (db) => {
     const and: Prisma.WebLeadWhereInput[] = [];
+    // Counselors see only the web leads routed to them (by an automation rule or an admin).
+    if (scope === 'own') and.push({ routedToId: ctx.userId });
     if (q.status) and.push({ status: q.status });
     if (q.sourceId) and.push({ sourceId: q.sourceId });
     if (q.q) {
@@ -172,10 +189,21 @@ export async function listInbox(ctx: Ctx, q: z.output<typeof webLeadListQuerySch
     });
     const hasMore = rows.length > q.limit;
     const items = hasMore ? rows.slice(0, q.limit) : rows;
-    const grouped = await db.webLead.groupBy({ by: ['status'], _count: { _all: true } });
+    const grouped = await db.webLead.groupBy({
+      by: ['status'],
+      where: scope === 'own' ? { routedToId: ctx.userId } : {},
+      _count: { _all: true },
+    });
     const last = items[items.length - 1];
+    const routed = await userNames(
+      db,
+      items.map((i) => i.routedToId),
+    );
     return {
-      items,
+      items: items.map((i) => ({
+        ...i,
+        routedToName: i.routedToId ? (routed.get(i.routedToId) ?? null) : null,
+      })),
       nextCursor: hasMore && last ? encodeKeyset('inbox', last.createdAt, last.id) : null,
       counts: Object.fromEntries(grouped.map((g) => [g.status, g._count._all])) as Record<string, number>,
     };
@@ -184,13 +212,14 @@ export async function listInbox(ctx: Ctx, q: z.output<typeof webLeadListQuerySch
 
 export async function getWebLead(ctx: Ctx, id: string) {
   authorize(ctx, 'webLead:view');
-  if (listScope(ctx, 'webLead:view') === 'own') throw notFound('Web lead');
+  const own = listScope(ctx, 'webLead:view') === 'own';
   return withTenant(ctx.tenantId, async (db) => {
     const row = await db.webLead.findFirst({
       where: { id },
       include: { source: { select: { id: true, label: true } } },
     });
-    if (!row) throw notFound('Web lead');
+    // A counselor reaches only what was routed to them; anyone else's is a 404.
+    if (!row || (own && row.routedToId !== ctx.userId)) throw notFound('Web lead');
     const match = row.dedupeMatchStudentId
       ? await db.student.findFirst({
           where: { id: row.dedupeMatchStudentId },
@@ -242,7 +271,8 @@ export async function convert(ctx: Ctx, id: string, dto: z.output<typeof webLead
   }
   return withTenant(ctx.tenantId, async (db) => {
     const wl = await db.webLead.findFirst({ where: { id } });
-    if (!wl) throw notFound('Web lead');
+    // A counselor can take only a web lead routed to them.
+    if (!wl || (ctx.role === 'COUNSELOR' && wl.routedToId !== ctx.userId)) throw notFound('Web lead');
     if (wl.status === 'CONVERTED')
       throw conflict('This web lead was already converted.', { leadId: wl.convertedLeadId });
     if (!wl.phoneE164) throw invalid('This submission has no usable phone number.');
@@ -341,6 +371,14 @@ export async function convert(ctx: Ctx, id: string, dto: z.output<typeof webLead
       where: { leadId, roleFunction: 'COUNSELOR', isActive: true },
     });
     let counselorId = ctx.role === 'COUNSELOR' ? ctx.userId : (dto.counselorId ?? null);
+    // Routed to a counselor already: they get the lead, if they are still around.
+    if (!counselorId && !current && wl.routedToId) {
+      const routed = await db.user.findFirst({
+        where: { id: wl.routedToId, status: 'ACTIVE', deletedAt: null, roleCode: 'COUNSELOR' },
+        select: { id: true },
+      });
+      counselorId = routed?.id ?? null;
+    }
     if (!counselorId && !current && settings.roundRobin) counselorId = await pickRoundRobin(db, 'COUNSELOR');
     if (counselorId && counselorId !== current?.assigneeId) {
       await assertAssignable(db, counselorId, 'COUNSELOR');

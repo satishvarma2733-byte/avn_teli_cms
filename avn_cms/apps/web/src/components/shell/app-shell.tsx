@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Bell,
   BarChart3,
   ClipboardList,
   Download,
@@ -17,6 +18,7 @@ import {
   UserCircle,
   Users,
   X,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -38,6 +40,8 @@ const ICONS: Record<NavIcon, typeof LayoutDashboard> = {
   imports: Upload,
   exports: Download,
   documents: FolderOpen,
+  automations: Zap,
+  notifications: Bell,
   users: Users,
   audit: ScrollText,
   settings: Settings,
@@ -50,6 +54,33 @@ const ROLE_LABEL: Record<string, string> = {
   COUNSELOR: 'Counselor',
   TELECALLER: 'Telecaller',
 };
+
+/** Event the notifications page fires after it marks things read, so the badge updates at once. */
+export const NOTIFICATIONS_CHANGED = 'avn:notifications-changed';
+
+/** How many notifications are unread: checked on each page, every minute, and when the inbox changes. */
+function useUnreadNotifications(pathname: string): number {
+  const api = useApi();
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const check = () =>
+      api<{ unread: number }>('/api/notifications/unread')
+        .then((res) => {
+          if (live && res.ok) setUnread(res.data.unread);
+        })
+        .catch(() => undefined);
+    void check();
+    const timer = setInterval(check, 60_000);
+    window.addEventListener(NOTIFICATIONS_CHANGED, check);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      window.removeEventListener(NOTIFICATIONS_CHANGED, check);
+    };
+  }, [api, pathname]);
+  return unread;
+}
 
 export function AppShell({
   nav,
@@ -67,6 +98,7 @@ export function AppShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const api = useApi();
+  const unread = useUnreadNotifications(pathname);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -113,6 +145,12 @@ export function AppShell({
               >
                 <Icon className="size-4" aria-hidden />
                 {item.label}
+                {item.icon === 'notifications' && unread > 0 && (
+                  <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none tabular-nums text-primary-foreground">
+                    {unread > 99 ? '99+' : unread}
+                    <span className="sr-only"> unread</span>
+                  </span>
+                )}
               </Link>
             </li>
           );

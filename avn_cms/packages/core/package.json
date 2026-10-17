@@ -8,7 +8,8 @@
     "./policy": "./src/policy/index.ts",
     "./shared": "./src/shared/index.ts",
     "./schemas": "./src/schemas.ts",
-    "./import-fields": "./src/imports/fields.ts"
+    "./import-fields": "./src/imports/fields.ts",
+    "./automation": "./src/automation/definitions.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

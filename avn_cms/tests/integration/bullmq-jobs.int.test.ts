@@ -1,5 +1,6 @@
 import { resetConfigForTests } from '@avn-cms/config';
 import {
+  automation,
   closeQueue,
   documents,
   exportsService,
@@ -7,6 +8,8 @@ import {
   imports,
   JOB_QUEUE,
   openDownload,
+  sweepAutomation,
+  webLeads,
 } from '@avn-cms/core';
 import { ownerDb } from '@avn-cms/db/owner';
 import { Queue } from 'bullmq';
@@ -15,7 +18,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createJobsWorker } from '../../apps/worker/src/workers';
 import { ctxFor } from '../fixtures/ctx';
-import { makeLead, makeTenant, makeUser, resetData } from '../fixtures/factory';
+import { makeLead, makeTenant, makeUser, resetData, webLeadSubmission } from '../fixtures/factory';
 
 /**
  * The background-job path against a real Redis: the web side enqueues on the `avn-jobs` BullMQ
@@ -238,5 +241,85 @@ describe('background jobs through BullMQ and Redis', () => {
         await store.remove(row.storageKey);
       }
     }
+  });
+
+  const ingest = () =>
+    webLeads.ingest({
+      tenantId: tenant.id,
+      credentialId: null,
+      defaultSourceId: null,
+      channel: 'PUBLIC_API',
+      dto: webLeadSubmission() as never,
+      rawPayload: {},
+    });
+
+  it('carries out an automation run on the worker: a new web lead is routed to a counselor', async () => {
+    const counselor = await makeUser(tenant.id, 'COUNSELOR', 'counselor@bq.test');
+    await automation.installStarterRules(ctx());
+    const { id } = await ingest();
+
+    // The submission was saved and answered; the worker routes it afterwards.
+    const routedTo = await waitFor(
+      'the web lead to be routed',
+      async () => (await ownerDb().webLead.findFirstOrThrow({ where: { id } })).routedToId,
+    );
+    expect(routedTo).toBe(counselor.id);
+    const run = await ownerDb().automationRun.findFirstOrThrow({
+      where: { tenantId: tenant.id, entityId: id },
+    });
+    expect(run).toMatchObject({ status: 'DONE', attempts: 1 });
+    expect(await ownerDb().notification.count({ where: { userId: counselor.id } })).toBe(1);
+
+    const jobs = (await queue.getJobs(['completed'])).filter((j) => j.name === 'automation.run');
+    expect(jobs.map((j) => j.data)).toEqual([{ tenantId: tenant.id, jobId: run.id }]);
+    expect(await queue.getJobCounts('failed', 'active', 'waiting', 'delayed')).toEqual({
+      failed: 0,
+      active: 0,
+      waiting: 0,
+      delayed: 0,
+    });
+  });
+
+  it('queues a run that was recorded but never handed over, once the sweep sees it', async () => {
+    const counselor = await makeUser(tenant.id, 'COUNSELOR', 'counselor@bq.test');
+    // A web lead that arrived before any rule existed; then the rule; then a run whose hand-over was lost.
+    const { id } = await ingest();
+    await automation.installStarterRules(ctx());
+    const rule = await ownerDb().automationRule.findFirstOrThrow({
+      where: { tenantId: tenant.id, starterKey: 'route_web_leads' },
+    });
+    const run = await ownerDb().automationRun.create({
+      data: {
+        tenantId: tenant.id,
+        ruleId: rule.id,
+        event: 'WEB_LEAD_CREATED',
+        entityId: id,
+        status: 'PENDING',
+        dedupeKey: id,
+        payload: {
+          webLeadId: id,
+          name: 'Web Student',
+          status: 'NEW',
+          sourceId: null,
+          country: null,
+          neetScore: null,
+        },
+        createdAt: new Date(Date.now() - 5 * 60_000),
+      },
+    });
+    const jobsFor = async () =>
+      (await queue.getJobs(['completed', 'waiting', 'active', 'delayed'])).filter(
+        (j) => (j.data as { jobId: string }).jobId === run.id,
+      );
+    expect(await jobsFor()).toHaveLength(0); // nothing was ever queued for it
+
+    expect(await sweepAutomation(tenant.id)).toMatchObject({ requeued: 1 });
+    await waitFor(
+      'the run to finish',
+      async () =>
+        (await ownerDb().automationRun.findFirstOrThrow({ where: { id: run.id } })).status === 'DONE',
+    );
+    expect((await ownerDb().webLead.findFirstOrThrow({ where: { id } })).routedToId).toBe(counselor.id);
+    expect(await jobsFor()).toHaveLength(1);
   });
 });

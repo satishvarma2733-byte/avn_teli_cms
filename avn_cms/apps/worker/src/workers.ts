@@ -2,6 +2,7 @@ import { JOB_QUEUE, processJob, type JobKind, type JobPayload } from '@avn-cms/c
 import { Worker, type ConnectionOptions, type Queue } from 'bullmq';
 
 import {
+  automationSweepAllTenants,
   documentMaintenanceAllTenants,
   expiredFilesSweepAllTenants,
   overdueSweepAllTenants,
@@ -25,6 +26,8 @@ export const SYSTEM_JOBS = {
   'stuck-jobs': 2 * 60_000,
   // Re-queues document scans that never ran, removes blocked/deleted files, drops abandoned uploads.
   'document-maintenance': 2 * 60_000,
+  // Time-based automation rules (uncontacted leads, overdue calls), pending runs, run-log cleanup.
+  'automation-sweep': 2 * 60_000,
 } as const;
 export type SystemJobName = keyof typeof SYSTEM_JOBS;
 
@@ -44,6 +47,8 @@ export async function processSystemJob(name: string) {
       return stuckJobsSweepAllTenants();
     case 'document-maintenance':
       return documentMaintenanceAllTenants();
+    case 'automation-sweep':
+      return automationSweepAllTenants();
     default:
       throw new Error(`Unknown job ${name}`);
   }

@@ -329,54 +329,14 @@ export async function update(ctx: Ctx, followUpId: string, dto: UpdateDTO) {
 }
 
 /**
- * Worker sweep for one tenant: flags open calls past their slot as overdue and escalates
- * those overdue longer than `escalateAfterHours` to the tenant admins (in-app notification).
+ * Worker sweep for one tenant: flags open calls past their slot as overdue (what the queues show).
+ * Escalating calls that stay overdue is an automation rule (FOLLOWUP_OVERDUE → escalate), run by the
+ * automation sweep, so how long to wait and who to tell are the workspace's choice.
  */
-export async function sweepOverdue(db: TenantDb, now = new Date(), escalateAfterHours = 24) {
+export async function sweepOverdue(db: TenantDb, now = new Date()) {
   const flagged = await db.followUp.updateMany({
     where: { completedAt: null, isOverdue: false, scheduledAt: { lt: now } },
     data: { isOverdue: true },
   });
-  const cutoff = new Date(now.getTime() - escalateAfterHours * 3_600_000);
-  const toEscalate = await db.followUp.findMany({
-    where: { completedAt: null, escalatedAt: null, scheduledAt: { lt: cutoff }, lead: { deletedAt: null } },
-    select: {
-      id: true,
-      assigneeId: true,
-      leadId: true,
-      lead: { select: { studentId: true, student: { select: { name: true } } } },
-    },
-    take: 500,
-  });
-  if (toEscalate.length === 0) return { flagged: flagged.count, escalated: 0 };
-  const admins = await db.user.findMany({
-    where: { roleCode: 'TENANT_ADMIN', status: 'ACTIVE', deletedAt: null },
-    select: { id: true },
-  });
-  const escalateTo = admins[0]?.id ?? null;
-  for (const fu of toEscalate) {
-    await db.followUp.updateMany({
-      where: { id: fu.id, escalatedAt: null },
-      data: { escalatedAt: now, escalatedTo: escalateTo },
-    });
-    const recipients = [...new Set([fu.assigneeId, ...admins.map((a) => a.id)])];
-    await db.notification.createMany({
-      data: recipients.map((userId) => ({
-        userId,
-        type: 'followup.escalated',
-        title: `Overdue call: ${fu.lead.student.name}`,
-        body: `A follow-up has been overdue for more than ${escalateAfterHours} hours.`,
-        entityType: 'lead',
-        entityId: fu.leadId,
-      })) as Prisma.NotificationCreateManyInput[],
-    });
-    await recordActivity(db, {
-      studentId: fu.lead.studentId,
-      leadId: fu.leadId,
-      type: 'SYSTEM',
-      summary: `Overdue call escalated${escalateTo ? ' to the admin' : ''}`,
-      payload: { followUpId: fu.id },
-    });
-  }
-  return { flagged: flagged.count, escalated: toEscalate.length };
+  return { flagged: flagged.count };
 }

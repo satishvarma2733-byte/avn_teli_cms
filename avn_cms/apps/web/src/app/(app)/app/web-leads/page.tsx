@@ -5,7 +5,7 @@ import { Suspense } from 'react';
 
 import { ExportButton } from '@/components/exports/export-button';
 import { buttonVariants } from '@/components/ui/button';
-import { Alert, PageHeader } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/primitives';
 import { requireTenantPage } from '@/lib/session';
 
 import { WebLeadsInbox } from './web-leads-inbox';
@@ -22,7 +22,11 @@ export default async function WebLeadsPage() {
     <>
       <PageHeader
         title="Web leads"
-        description="Website and landing-page enquiries, before they become students."
+        description={
+          isAdmin
+            ? 'Website and landing-page enquiries, before they become students.'
+            : 'Website enquiries routed to you, before they become students.'
+        }
         actions={
           <>
             {isAdmin && (
@@ -38,15 +42,9 @@ export default async function WebLeadsPage() {
           </>
         }
       />
-      {isAdmin ? (
-        <Suspense>
-          <WebLeadsInbox />
-        </Suspense>
-      ) : (
-        <Alert tone="info">
-          Web leads routed to you will appear here once lead routing is switched on by your admin.
-        </Alert>
-      )}
+      <Suspense>
+        <WebLeadsInbox isAdmin={isAdmin} />
+      </Suspense>
     </>
   );
 }

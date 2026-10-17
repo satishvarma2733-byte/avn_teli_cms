@@ -1,3 +1,4 @@
+import { runAutomation } from '../automation/runner';
 import { scanDocument } from '../documents/document.runner';
 import { exportRun } from '../exports/export.runner';
 import { runImport, validateImport } from '../imports/import.runner';
@@ -14,6 +15,8 @@ export async function processJob(kind: JobKind, payload: JobPayload): Promise<vo
       return exportRun(payload);
     case 'document.scan':
       return scanDocument(payload);
+    case 'automation.run':
+      return runAutomation(payload);
   }
 }
 

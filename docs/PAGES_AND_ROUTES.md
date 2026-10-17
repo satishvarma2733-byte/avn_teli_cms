@@ -47,7 +47,7 @@ Visibility per role shown as `[A]` Tenant Admin · `[C]` Counselor · `[T]` Tele
 │
 ├── /followups                      [A][C][T]  Call queue: Today | Upcoming | Pending | Overdue | Closed
 │
-├── /web-leads                      [A]([C])   External intake inbox
+├── /web-leads                      [A][C]     External intake inbox (a counselor sees the ones routed to them)
 │   └── /[webLeadId]                 [A]        review → convert / mark duplicate / assign
 │
 ├── /reports                        [A][C*][T*] *own-performance-only for C/T
@@ -65,7 +65,8 @@ Visibility per role shown as `[A]` Tenant Admin · `[C]` Counselor · `[T]` Tele
 │   └── /[id]                        [A]        map columns, check, import, results
 ├── /exports                        [A][C][T]  your exports and their download links
 │
-├── /automations                    [A]        rule builder + run log
+├── /automations                    [A]        rules (builder dialog) + run log
+├── /notifications                  [A][C][T]  your notifications, unread badge in the navigation
 │
 ├── /users                          [A]        Users workspace (team)
 │   ├── /new                         [A]
@@ -225,7 +226,11 @@ GET    /api/users                  POST /api/users
 GET    /api/users/:id              PATCH /api/users/:id   DELETE /api/users/:id (requires lead transfer)
 POST   /api/users/:id/reset-password
 POST   /api/users/:id/transfer-leads  { toUserId }
-GET    /api/automations            POST /api/automations  PATCH /api/automations/:id
+GET    /api/automations            POST /api/automations  PATCH /api/automations/:id  DELETE /api/automations/:id
+POST   /api/automations/starter    add the missing starter rules
+GET    /api/automations/runs       run log (?ruleId&status&cursor&limit)
+GET    /api/notifications          my notifications (?unreadOnly&cursor&limit)   GET /api/notifications/unread
+POST   /api/notifications/read     { ids } or { all: true }
 GET    /api/audit                  ?entityType&entityId&actor&dateFrom&dateTo&cursor
 GET    /api/settings               PATCH /api/settings
 ```

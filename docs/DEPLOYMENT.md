@@ -18,15 +18,15 @@ Node.js ≥ 22.12 (developed on 24.14), pnpm 9. The web app is stateless; run as
 instances as needed behind a load balancer. One worker is enough (BullMQ de-duplicates the
 repeatable job if more run).
 
-The worker consumes two BullMQ queues: `avn-jobs` (imports, exports and document virus scans) and `avn-system`
-(overdue sweep every 5 minutes, expired-file cleanup hourly, and a stuck-jobs sweep every 2 minutes
+The worker consumes two BullMQ queues: `avn-jobs` (imports, exports, document virus scans and automation runs) and `avn-system`
+(overdue sweep every 5 minutes, an automation sweep every 2 minutes that finds uncontacted leads and overdue calls for the time-based rules, queues runs whose hand-over was lost and recovers runs a crash cut off, with finished runs deleted after 90 days (`AUTOMATION.md` §2), expired-file cleanup hourly, and a stuck-jobs sweep every 2 minutes
 that marks imports and exports cut off by a worker crash as failed, so people can start over;
 see `IMPORT_EXPORT.md` §7; and a document sweep every 2 minutes that re-queues scans that never ran, removes blocked and long-deleted files, and drops abandoned uploads; see `DOCUMENTS.md` §8).
 
 Without Redis the web app still works, but rate limits are per process, imports and exports run
 inside the web process (development only: a restart cuts them off), and the worker cannot run.
-`pnpm --filter @avn-cms/worker sweep:once` runs the overdue sweep and the stuck-jobs sweep once
-without Redis (cron fallback).
+`pnpm --filter @avn-cms/worker sweep:once` runs the overdue, stuck-jobs, documents and automation sweeps once
+without Redis (cron fallback; it waits for the automation runs it starts).
 
 ## 2. Environment variables
 
@@ -115,7 +115,7 @@ never rename or drop in the same release).
   workspace only when it recovered something (`imports` / `exports` counts): treat that as a sign
   the worker was restarted or killed mid-run.
 - Recommended alerts: health check failing; 5xx rate; intake 401 spike (a website with a
-  revoked/rotated credential); worker not logging `overdue-sweep` for > 15 minutes.
+  revoked/rotated credential); worker not logging `overdue-sweep` for > 15 minutes; `automation run failed` or `automation run could not be queued` lines (the sweep queues the second kind again, but a steady stream means Redis or the worker is unhealthy).
 
 ## 7. Backups and recovery
 

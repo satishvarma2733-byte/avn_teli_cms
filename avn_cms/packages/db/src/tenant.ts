@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import { Prisma } from '../generated/prisma/client';
 
 import type { BaseClient } from './client';
@@ -110,6 +112,31 @@ export type TenantDb = Parameters<Parameters<Scoped['$transaction']>[0]>[0];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+type AfterCommitHook = () => void | Promise<void>;
+const commitHooks = new AsyncLocalStorage<AfterCommitHook[]>();
+
+/**
+ * Runs `hook` once the surrounding `withTenant` transaction has committed (and never if it rolls
+ * back). Used to start background work for a change only when the change is really saved: a job that
+ * starts before the commit could not see the rows it is meant to work on. Outside a transaction the
+ * hook runs at once. A failing hook is logged and never undoes the committed change.
+ */
+export function afterCommit(hook: AfterCommitHook): void {
+  const hooks = commitHooks.getStore();
+  if (hooks) hooks.push(hook);
+  else void Promise.resolve().then(hook).catch(logHookFailure);
+}
+
+function logHookFailure(err: unknown): void {
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      msg: 'after-commit hook failed',
+      error: err instanceof Error ? err.message : String(err),
+    }),
+  );
+}
+
 export interface TenantTxOptions {
   /** Longest the transaction may run (default 15 s). */
   timeoutMs?: number;
@@ -127,11 +154,23 @@ export async function runInTenant<T>(
   options: TenantTxOptions = {},
 ): Promise<T> {
   if (!UUID.test(tenantId)) throw new TenantScopeViolation('tenantId must be a UUID');
-  return scoped(base, tenantId).$transaction(
-    async (tx) => {
-      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-      return fn(tx);
-    },
-    { maxWait: 5_000, timeout: options.timeoutMs ?? 15_000 },
+  const hooks: AfterCommitHook[] = [];
+  const result = await commitHooks.run(hooks, () =>
+    scoped(base, tenantId).$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+        return fn(tx);
+      },
+      { maxWait: 5_000, timeout: options.timeoutMs ?? 15_000 },
+    ),
   );
+  // Committed: now the hooks (a rollback threw above, so none of them run).
+  for (const hook of hooks) {
+    try {
+      await hook();
+    } catch (err) {
+      logHookFailure(err);
+    }
+  }
+  return result;
 }

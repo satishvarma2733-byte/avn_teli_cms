@@ -144,7 +144,10 @@ today, so it can be changed safely before cutover.
 The main-site caller gives up after 4 s, so the request path does only: authenticate →
 normalise → one indexed duplicate lookup on `(tenant_id, phone_e164)` → insert → enqueue
 `web_lead.created` → respond. Target **p95 < 500 ms**. Assignment, round-robin,
-automations and notifications run in the worker.
+automations and notifications run in the worker. Concretely (Phase 8): the submission and one
+`PENDING` automation run per matching rule are saved in the same transaction; the run is queued after
+the commit, and the worker routes the web lead to a counselor and tells them (`AUTOMATION.md` §2).
+The rule engine is not on the request path, and an intake request is never slower or failed because of it.
 
 ### Duplicates and retries
 

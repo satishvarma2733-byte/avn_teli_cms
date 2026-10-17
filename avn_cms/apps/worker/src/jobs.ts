@@ -1,4 +1,10 @@
-import { deleteExpiredFiles, failStuckJobs, followups, maintainDocuments } from '@avn-cms/core';
+import {
+  deleteExpiredFiles,
+  failStuckJobs,
+  followups,
+  maintainDocuments,
+  sweepAutomation,
+} from '@avn-cms/core';
 import { withTenant } from '@avn-cms/db';
 import { ownerDb } from '@avn-cms/db/owner';
 
@@ -11,7 +17,7 @@ export async function overdueSweepAllTenants(now = new Date()) {
     where: { status: { not: 'SUSPENDED' } },
     select: { id: true, slug: true },
   });
-  const results: { tenant: string; flagged: number; escalated: number }[] = [];
+  const results: { tenant: string; flagged: number }[] = [];
   for (const t of tenants) {
     try {
       const r = await withTenant(t.id, (db) => followups.sweepOverdue(db, now), { timeoutMs: 60_000 });
@@ -85,6 +91,43 @@ export async function documentMaintenanceAllTenants(now = new Date()) {
         JSON.stringify({
           level: 'error',
           msg: 'document maintenance failed',
+          tenant: t.slug,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }
+  return results;
+}
+
+/**
+ * Automation housekeeping in every workspace: finds leads nobody has contacted and calls that are
+ * overdue (for the rules that watch for them), queues runs that were never handed over, recovers runs
+ * a dead worker left half done, and removes old finished runs.
+ */
+export async function automationSweepAllTenants(now = new Date()) {
+  const tenants = await ownerDb().tenant.findMany({
+    where: { status: { not: 'SUSPENDED' } },
+    select: { id: true, slug: true },
+  });
+  const results: {
+    tenant: string;
+    uncontacted: number;
+    overdue: number;
+    requeued: number;
+    recovered: number;
+    purged: number;
+  }[] = [];
+  for (const t of tenants) {
+    try {
+      const r = await sweepAutomation(t.id, now);
+      if (r.uncontacted + r.overdue + r.requeued + r.recovered + r.purged > 0)
+        results.push({ tenant: t.slug, ...r });
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'automation sweep failed',
           tenant: t.slug,
           error: err instanceof Error ? err.message : String(err),
         }),

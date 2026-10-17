@@ -174,6 +174,7 @@ Index on `(tenant_id, status, submitted_at desc)`; `phone_e164` checked against 
 `city, neet_score int, neet_status, education, education_group, submitted_by (parent/student), post_slug`,
 `gclid, campaign_id, page_url, landing_page, utm_source, utm_medium, utm_campaign, utm_term, utm_content, form_id, session_id`,
 `quality_flags text[]` (e.g. `INVALID_EMAIL`), `idempotency_key text`.
+**Routing** (Phase 8): `routed_to_id uuid null` (the counselor an automation rule chose; what a counselor's inbox shows) and `routed_at`; index `(tenant_id, routed_to_id, status)`.
 `raw_payload` always holds the full body as received, so nothing a sender posts is lost
 even before a column exists for it. Partial unique index
 `UNIQUE(tenant_id, intake_credential_id, idempotency_key) WHERE idempotency_key IS NOT NULL`.
@@ -206,7 +207,10 @@ Per-student required-doc tracking.
 `id, tenant_id, user_id, type, title, body, entity_type, entity_id, read_at null, created_at`.
 
 ### `automation_rules`
-`id, tenant_id, name, is_active, trigger(WEB_LEAD_CREATED|LEAD_UNCONTACTED|FOLLOWUP_OVERDUE|STAGE_CHANGED|…), conditions jsonb, actions jsonb (assign_round_robin|notify|escalate|schedule_followup|stop_reminders), created_by, created_at`. Evaluated by the worker.
+`id, tenant_id, name, is_active, trigger(WEB_LEAD_CREATED|LEAD_UNCONTACTED|FOLLOWUP_OVERDUE|STAGE_CHANGED), conditions jsonb, actions jsonb (assign_round_robin|notify|escalate|schedule_followup|stop_reminders), starter_key null, created_by_id, created_at, updated_at`. `UNIQUE(tenant_id, starter_key)` so the starter rules are never duplicated. Conditions and actions are validated by the shared definitions (`packages/core/src/automation/definitions.ts`).
+
+### `automation_runs`
+`id, tenant_id, rule_id, event, entity_id null, status(PENDING|RUNNING|DONE|SKIPPED|FAILED), payload jsonb (what happened, as the rule saw it), result jsonb (summary + what each action did), dedupe_key, attempts, started_at, finished_at, created_at`. `UNIQUE(tenant_id, rule_id, dedupe_key)`: one run per rule per web lead / lead stage change / lead / call. A run is inserted in the transaction of the change that caused it; the job carries it out. Finished runs are deleted after 90 days. See `AUTOMATION.md` §2.
 
 ### `audit_logs`
 `id, tenant_id, user_id, action, entity_type, entity_id, old_value jsonb, new_value jsonb, ip inet, user_agent text, impersonated_by uuid null, created_at`. Write-only from services; viewer is admin-only. Full action list in `AUDIT_LOGGING.md`.

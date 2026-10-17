@@ -1,6 +1,7 @@
 import { withTenant, type LeadStage, type Prisma, type RoleFunction, type TenantDb } from '@avn-cms/db';
 
 import { listTimeline, recordActivity } from '../activities/activity.repository';
+import { emitAutomation } from '../automation/emit';
 import {
   assertAssignable,
   pickRoundRobin,
@@ -455,7 +456,7 @@ export async function applyStageChange(
       ...(lead.stage === 'NEW' ? { lastContactedAt: new Date() } : {}),
     },
   });
-  await db.leadStatusHistory.create({
+  const history = await db.leadStatusHistory.create({
     data: {
       leadId: lead.id,
       fromStage: lead.stage,
@@ -482,6 +483,26 @@ export async function applyStageChange(
     { stage: lead.stage },
     { stage: to, note, reason },
   );
+  // Rules may react to the change; the runs are recorded with it and start once it is committed.
+  await emitAutomation(db, ctx.tenantId, {
+    trigger: 'STAGE_CHANGED',
+    entityId: lead.id,
+    dedupeKey: `${lead.id}:${history.id}`,
+    payload: async () => {
+      const row = await db.lead.findFirst({
+        where: { id: lead.id },
+        select: { sourceId: true, student: { select: { name: true } } },
+      });
+      return {
+        leadId: lead.id,
+        studentId: lead.studentId,
+        name: row?.student.name ?? '',
+        sourceId: row?.sourceId ?? null,
+        from: lead.stage,
+        to,
+      };
+    },
+  });
   return true;
 }
 

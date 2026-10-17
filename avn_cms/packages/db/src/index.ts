@@ -7,7 +7,13 @@ export { Prisma } from '../generated/prisma/client';
 export type * from '../generated/prisma/client';
 export * from '../generated/prisma/enums';
 export { pingDatabase, disconnectAll, type BaseClient } from './client';
-export { TENANT_MODELS, TenantScopeViolation, type TenantDb, type TenantTxOptions } from './tenant';
+export {
+  afterCommit,
+  TENANT_MODELS,
+  TenantScopeViolation,
+  type TenantDb,
+  type TenantTxOptions,
+} from './tenant';
 
 /**
  * The application client (role avn_app: RLS always applies). Tenant data is only reachable

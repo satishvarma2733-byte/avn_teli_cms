@@ -158,7 +158,7 @@ behavior is honored; exports stream from a job, never block a request.
 
 **Docs:** `IMPORT_EXPORT.md`.
 
-**Status (2026-10-16):** Verified locally: lint, typecheck, format, 182 unit, 72 integration (including the 50,000-row import), 19 e2e. Known gap: a run cut off by a crash is not recovered automatically (see `IMPORT_EXPORT.md` §7).
+**Status (2026-10-16):** Verified locally: lint, typecheck, format, 182 unit, 72 integration (including the 50,000-row import), 19 e2e. A run cut off by a crash is recovered: the worker fails it so people can start over (see `IMPORT_EXPORT.md` §7).
 
 ---
 
@@ -202,7 +202,11 @@ reminders. Rule builder UI + run log.
 **Exit:** each starter rule fires in e2e; rules are tenant-scoped; a disabled rule never
 runs; runs are logged.
 
-**Docs:** section in `FEATURES.md`.
+**Docs:** `AUTOMATION.md` (the feature, how a run happens, the API; the standalone `FEATURES.md` arrives with Phase 10).
+
+**Status (2026-10-17):** Verified locally: lint, typecheck, format, 225 unit, 148 integration, 34 e2e. The exit criteria are tested: each starter rule fires in the browser tests (the two time-based ones through the worker's sweep), rules and runs never cross workspaces, a rule that is off never runs, and every run is in the log.
+
+**Decisions (2026-10-17):** a run is recorded in the transaction of the change that caused it and handed to the queue after the commit (an outbox), so nothing is lost or run for a change that rolled back; a run's actions are one transaction (all or nothing, 3 attempts); actions never start other rules; overdue escalation became a rule (the migration gives it to every existing workspace); web leads are routed with `web_leads.routed_to_id`, which is what lets counselors see "their" web leads.
 
 ---
 

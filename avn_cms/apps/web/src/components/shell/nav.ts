@@ -9,6 +9,8 @@ export type NavIcon =
   | 'imports'
   | 'exports'
   | 'documents'
+  | 'automations'
+  | 'notifications'
   | 'users'
   | 'audit'
   | 'settings'
@@ -30,6 +32,7 @@ const ITEMS: (NavItem & { action: Action })[] = [
   { href: '/app/imports', label: 'Imports', icon: 'imports', action: 'import:run' },
   { href: '/app/exports', label: 'Exports', icon: 'exports', action: 'export:run' },
   { href: '/app/documents', label: 'Documents', icon: 'documents', action: 'document:manage' },
+  { href: '/app/automations', label: 'Automations', icon: 'automations', action: 'automation:manage' },
   { href: '/app/users', label: 'Users', icon: 'users', action: 'user:list' },
   { href: '/app/audit', label: 'Audit log', icon: 'audit', action: 'audit:view' },
   { href: '/app/settings', label: 'Settings', icon: 'settings', action: 'settings:manage' },
@@ -42,6 +45,7 @@ export function navFor(ctx: PolicyCtx): NavItem[] {
     if (i.href === '/app/documents') return listScope(ctx, 'document:manage') === 'tenant';
     return can(ctx, i.action);
   }).map(({ href, label, icon }) => ({ href, label, icon }));
+  items.push({ href: '/app/notifications', label: 'Notifications', icon: 'notifications' });
   items.push({ href: '/app/account', label: 'My account', icon: 'account' });
   return items;
 }

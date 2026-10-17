@@ -81,3 +81,38 @@ export async function makeLead(
   }
   return { student, lead };
 }
+
+/** A web-lead submission as the intake normalises it (what `webLeads.ingest` takes as `dto`). */
+export function webLeadSubmission(over: Record<string, unknown> = {}) {
+  const phone = nextPhone();
+  return {
+    name: 'Web Student',
+    phoneRaw: phone,
+    phoneE164: phone,
+    email: null,
+    message: null,
+    interestCountry: 'Georgia',
+    interestCourse: 'MBBS',
+    city: null,
+    neetScore: 520,
+    neetStatus: null,
+    education: null,
+    educationGroup: null,
+    submittedBy: null,
+    postSlug: null,
+    gclid: null,
+    campaignId: null,
+    pageUrl: null,
+    landingPage: null,
+    utmSource: null,
+    utmMedium: null,
+    utmCampaign: null,
+    utmTerm: null,
+    utmContent: null,
+    formId: null,
+    sessionId: null,
+    sourceLabel: null,
+    qualityFlags: [],
+    ...over,
+  };
+}

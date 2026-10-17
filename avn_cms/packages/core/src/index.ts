@@ -18,6 +18,11 @@ export * as users from './users/user.service';
 export * as auditLog from './audit/audit.service';
 export * as imports from './imports/import.service';
 export type { ImportView } from './imports/import.service';
+export * as automation from './automation/rules.service';
+export type { RuleView, RunView } from './automation/rules.service';
+export { runAutomation, sweepAutomation, type SweepResult } from './automation/runner';
+export { STARTER_RULES, starterRuleRows } from './automation/starter';
+export * as notifications from './notifications/notification.service';
 export * as documents from './documents/document.service';
 export { listStuckScans, rescanDocument } from './documents/stuck';
 export { documentsHealth, type DocumentsHealth } from './documents/health';
@@ -36,7 +41,14 @@ export type { ExportView } from './exports/export.service';
 export { openDownload } from './storage/download';
 export { deleteExpiredFiles, MAX_FILE_BYTES } from './storage/files';
 export { processJob } from './jobs/runner';
-export { JOB_QUEUE, closeQueue, enqueue, type JobKind, type JobPayload } from './jobs/queue';
+export {
+  JOB_QUEUE,
+  closeQueue,
+  drainInProcessJobs,
+  enqueue,
+  type JobKind,
+  type JobPayload,
+} from './jobs/queue';
 export { STALE_AFTER_MS, failStuckJobs, type RecoveryResult } from './jobs/recovery';
 export * as platform from './platform/platform.service';
 export type { DashboardDTO } from './reports/report.service';
