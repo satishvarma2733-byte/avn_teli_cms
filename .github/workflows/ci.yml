@@ -28,7 +28,7 @@ jobs:
       # Docker Hub no longer serves new pulls of minio/minio; Quay does.
       MINIO_IMAGE: quay.io/minio/minio:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
         with:
