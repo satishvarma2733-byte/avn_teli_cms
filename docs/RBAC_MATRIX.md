@@ -109,6 +109,13 @@ Legend: ✅ full · 🟡 conditional (condition in cell) · ❌ none
 
 ---
 
+## Where it is enforced (Phase 9)
+
+Every route the matrix describes names its action (`route({ action: 'user:manage' }, …)`) and is checked **at the
+request gate before the body is read**; routes for the platform or the admin-only vault name `roles`. The service then
+checks the same action again with the record (ownership, workspace). A test walks every route against this matrix for
+each role (`tests/integration/security-tenant.int.test.ts`), and fails when a new action in the matrix is not placed.
+
 ## Policy function shape (for implementation)
 
 ```ts

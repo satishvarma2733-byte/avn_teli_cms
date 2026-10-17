@@ -1,0 +1,21 @@
+title = "aVn CMS secret scan"
+
+[extend]
+useDefault = true
+
+# Values that look like secrets but are not: documented local-only development defaults and test data.
+[allowlist]
+description = "Local-only development defaults and test fixtures"
+paths = [
+  '''avn_cms/\.env\.example$''',
+  '''avn_cms/docker-compose\.yml$''',
+  '''avn_cms/docker/postgres-init/.*''',
+  '''avn_cms/tests/fixtures/.*''',
+  '''avn_cms/pnpm-lock\.yaml$''',
+]
+regexes = [
+  '''avn_(app|owner|minio)_local_only''',
+  '''Demo-Password-2026''',
+  '''E2e-Password-2026''',
+  '''Test-Password-123''',
+]

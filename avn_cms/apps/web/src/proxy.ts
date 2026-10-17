@@ -34,19 +34,27 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV === 'development';
   const storage = storageOrigin();
-  // Inline style attributes are allowed (charts and the virtual table set them); scripts are
-  // nonce-only. Everything else is same-origin.
+  const https = (process.env.APP_URL ?? '').startsWith('https://');
+  // Scripts and style elements need the per-request nonce or our own origin; only style *attributes*
+  // (charts and the virtual table set them) are allowed inline. Everything else is same-origin, and
+  // nothing may be framed, embedded, run as a worker or play media.
   const csp = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? ` 'unsafe-eval'` : ''}`,
-    `style-src 'self' 'unsafe-inline'`,
+    `style-src 'self' 'nonce-${nonce}'${isDev ? ` 'unsafe-inline'` : ''}`,
+    `style-src-attr 'unsafe-inline'`,
     `img-src 'self' blob: data:`,
     `font-src 'self'`,
     `connect-src 'self'${storage ? ` ${storage}` : ''}${isDev ? ' ws:' : ''}`,
     `object-src 'none'`,
+    `frame-src 'none'`,
+    `worker-src 'none'`,
+    `media-src 'none'`,
+    `manifest-src 'self'`,
     `base-uri 'self'`,
     `form-action 'self'`,
     `frame-ancestors 'none'`,
+    ...(https ? ['upgrade-insecure-requests'] : []),
   ].join('; ');
 
   const requestHeaders = new Headers(request.headers);
@@ -54,6 +62,8 @@ export function proxy(request: NextRequest) {
   requestHeaders.set('Content-Security-Policy', csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
+  // Sign-in cookies and everything behind them only ever travel over HTTPS (browsers remember this).
+  if (https) response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   return response;
 }
 

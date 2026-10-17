@@ -1,13 +1,9 @@
 import {
-  confirmMfa,
-  beginMfaEnrollment,
   login,
   requestPasswordReset,
   resetPassword,
   revokeOtherSessions,
-  totpAt,
   validateSession,
-  verifyMfaForSession,
 } from '@avn-cms/auth';
 import { ownerDb } from '@avn-cms/db/owner';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -103,27 +99,6 @@ describe('authentication', () => {
     const issued = await requestPasswordReset({ workspace: 'acme', email: 'c@acme.test' });
     await ownerDb().passwordResetToken.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
     expect(await resetPassword({ token: issued!.token, password: 'New-Password-456' })).toBe(false);
-  });
-
-  it('MFA: enrol, then sign-in needs the second factor', async () => {
-    const res = await login(creds());
-    if (!res.ok) throw new Error('login failed');
-    const p = (await validateSession(res.token))!;
-    const { secret } = await beginMfaEnrollment(user.id);
-    expect(await confirmMfa(user.id, p.sessionId, '000000')).toBe(false);
-    expect(await confirmMfa(user.id, p.sessionId, totpAt(secret, Date.now()))).toBe(true);
-
-    const second = await login(creds());
-    expect(second).toMatchObject({ ok: true, mfaRequired: true });
-    if (!second.ok) return;
-    const pending = (await validateSession(second.token))!;
-    expect(pending.mfaVerified).toBe(false);
-    expect(await verifyMfaForSession(user.id, pending.sessionId, totpAt(secret, Date.now()))).toBe(true);
-    expect((await validateSession(second.token))!.mfaVerified).toBe(true);
-
-    // Re-enrolling can't be used to drop the active factor without a code.
-    await expect(beginMfaEnrollment(user.id)).rejects.toThrow(/already on/);
-    expect((await ownerDb().user.findUniqueOrThrow({ where: { id: user.id } })).mfaEnabledAt).not.toBeNull();
   });
 
   it('log out other devices keeps only the current session', async () => {

@@ -1,6 +1,14 @@
 'use client';
 
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
+import { z } from 'zod';
+
+/**
+ * The page policy forbids eval. Zod's fast path probes for it with `Function('')` and quietly falls back,
+ * but a blocked probe is reported as a policy violation on every page that validates something. Switching
+ * the fast path off in the browser removes the probe (and the noise); the server keeps it.
+ */
+z.config({ jitless: true });
 
 /** Client side of the API envelope (ARCHITECTURE §3). */
 export interface ApiError {

@@ -224,6 +224,10 @@ has no open P0/P1; `SECURITY.md` finalized.
 
 **Docs:** `SECURITY.md` (final), `DEPLOYMENT.md` security section.
 
+**Status (2026-10-17):** Verified locally: lint, typecheck, format, 259 unit, 197 integration, 43 e2e, `pnpm audit` clean. The exit criteria are met: the security tests run per category (`SECURITY.md` §3), the internal checklist has no open P0 or P1 (15 findings, all fixed, §4), and `SECURITY.md` is final. Not done: an independent penetration test and a DAST scan of staging, and anything that needs a real host (TLS, proxy) or Cloudflare R2.
+
+**Decisions (2026-10-17):** the policy action or roles of a route are declared on the route and checked before its body is read; the client address is the entry our own proxy added (`TRUSTED_PROXY_HOPS`, default: ignore the header); every sign-in failure gets one answer, including a paused account; two-step verification needs the password to turn on, a code works once, recovery codes are keyed hashes, and roles can be required to use it (`MFA_REQUIRED_ROLES`); the application database role cannot read credential columns; platform sessions last 12 hours.
+
 ---
 
 ## Phase 10 — Testing & production readiness

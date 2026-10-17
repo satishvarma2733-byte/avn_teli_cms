@@ -36,8 +36,16 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
 
   if (client) {
     try {
-      const count = await client.incr(fullKey);
-      if (count === 1) await client.expire(fullKey, windowSeconds);
+      // Count and expiry in one round trip, so a crash between them can't leave a counter that never
+      // expires. (The window number is part of the key, so re-setting the expiry is harmless.)
+      const replies = await client
+        .multi()
+        .incr(fullKey)
+        .expire(fullKey, windowSeconds + 1)
+        .exec();
+      const first = replies?.[0];
+      if (!first || first[0]) throw first?.[0] ?? new Error('no reply');
+      const count = Number(first[1]);
       return { allowed: count <= limit, remaining: Math.max(0, limit - count), retryAfterSeconds };
     } catch {
       // Redis down: fail open for availability, but keep the in-memory limit as a floor.
@@ -45,6 +53,10 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
   }
   g.__avnMemLimits ??= new Map();
   const now = Date.now();
+  if (g.__avnMemLimits.size > 10_000) {
+    // No Redis: forget windows that have ended, so the map cannot grow without bound.
+    for (const [k, v] of g.__avnMemLimits) if (v.resetAt <= now) g.__avnMemLimits.delete(k);
+  }
   const entry = g.__avnMemLimits.get(fullKey);
   if (!entry || entry.resetAt <= now) {
     g.__avnMemLimits.set(fullKey, { count: 1, resetAt: now + windowSeconds * 1000 });

@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { contextFor, SESSION_COOKIE, validateSession, type Ctx, type Principal } from '@avn-cms/auth';
+import { getConfig } from '@avn-cms/config';
+import { clientIpFrom } from '@avn-cms/core';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
@@ -14,7 +16,7 @@ export const getPrincipal = cache(async (): Promise<Principal | null> => {
 async function requestMeta() {
   const h = await headers();
   return {
-    ip: h.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined,
+    ip: clientIpFrom((name) => h.get(name), getConfig().TRUSTED_PROXY_HOPS),
     userAgent: h.get('user-agent') ?? undefined,
   };
 }
@@ -24,6 +26,7 @@ export async function requireTenantPage(): Promise<{ principal: Principal; ctx: 
   const principal = await getPrincipal();
   if (!principal) redirect('/login');
   if (principal.mfaEnabled && !principal.mfaVerified) redirect('/login/mfa');
+  if (principal.mfaSetupRequired) redirect('/login/mfa-setup');
   const ctx = contextFor(principal, await requestMeta());
   if (!ctx) redirect(principal.role === 'SUPER_ADMIN' ? '/platform' : '/login');
   return { principal, ctx };
@@ -34,6 +37,7 @@ export async function requirePlatformPage(): Promise<Principal> {
   const principal = await getPrincipal();
   if (!principal) redirect('/login');
   if (principal.mfaEnabled && !principal.mfaVerified) redirect('/login/mfa');
+  if (principal.mfaSetupRequired) redirect('/login/mfa-setup');
   if (principal.role !== 'SUPER_ADMIN') redirect('/app/dashboard');
   return principal;
 }

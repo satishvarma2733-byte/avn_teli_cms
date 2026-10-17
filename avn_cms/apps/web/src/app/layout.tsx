@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
+
+import { StyleNonce } from '@/components/style-nonce';
 
 import './globals.css';
 
@@ -22,9 +25,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Every page renders per request so Next.js can stamp the CSP nonce from proxy.ts onto its
   // scripts (a prerendered page has no nonce and would be blocked by the strict policy).
   await connection();
+  const nonce = (await headers()).get('x-nonce') ?? '';
   return (
     <html lang="en">
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        <StyleNonce nonce={nonce} />
+        {children}
+      </body>
     </html>
   );
 }

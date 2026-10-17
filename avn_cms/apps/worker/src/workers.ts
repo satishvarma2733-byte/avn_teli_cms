@@ -4,6 +4,7 @@ import { Worker, type ConnectionOptions, type Queue } from 'bullmq';
 import {
   automationSweepAllTenants,
   documentMaintenanceAllTenants,
+  authCleanup,
   expiredFilesSweepAllTenants,
   overdueSweepAllTenants,
   stuckJobsSweepAllTenants,
@@ -28,6 +29,8 @@ export const SYSTEM_JOBS = {
   'document-maintenance': 2 * 60_000,
   // Time-based automation rules (uncontacted leads, overdue calls), pending runs, run-log cleanup.
   'automation-sweep': 2 * 60_000,
+  // Ended sessions and used reset links older than a month / a week.
+  'auth-cleanup': 60 * 60_000,
 } as const;
 export type SystemJobName = keyof typeof SYSTEM_JOBS;
 
@@ -49,6 +52,8 @@ export async function processSystemJob(name: string) {
       return documentMaintenanceAllTenants();
     case 'automation-sweep':
       return automationSweepAllTenants();
+    case 'auth-cleanup':
+      return authCleanup();
     default:
       throw new Error(`Unknown job ${name}`);
   }

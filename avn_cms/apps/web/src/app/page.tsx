@@ -7,5 +7,6 @@ export default async function Home() {
   const principal = await getPrincipal();
   if (!principal) redirect('/login');
   if (principal.mfaEnabled && !principal.mfaVerified) redirect('/login/mfa');
+  if (principal.mfaSetupRequired) redirect('/login/mfa-setup');
   redirect(landingPath(principal));
 }

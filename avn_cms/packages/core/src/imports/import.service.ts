@@ -228,6 +228,7 @@ export async function startRun(ctx: Ctx, id: string, duplicateMode: ImportOption
 export async function cancelImport(ctx: Ctx, id: string) {
   authorize(ctx, 'import:run');
   return withTenant(ctx.tenantId, async (db) => {
+    if (!(await db.importJob.findFirst({ where: { id }, select: { id: true } }))) throw notFound('Import');
     const res = await db.importJob.updateMany({
       where: { id, status: { in: ['DRAFT', 'VALIDATED', 'FAILED'] } },
       data: { status: 'CANCELED', finishedAt: new Date() },

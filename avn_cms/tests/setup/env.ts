@@ -14,6 +14,10 @@ export function useTestDatabases(): void {
   process.env['DATABASE_OWNER_URL'] = owner;
   // Rate limits use the in-process fallback in tests so runs don't share Redis state.
   delete process.env['REDIS_URL'];
+  // Test requests carry one X-Forwarded-For address each, as if one proxy sat in front of the app.
+  process.env['TRUSTED_PROXY_HOPS'] = '1';
+  // Two-step verification is optional unless a test asks for it.
+  delete process.env['MFA_REQUIRED_ROLES'];
   // Tests never send email (the "not configured" path is what they exercise).
   delete process.env['SMTP_HOST'];
   delete process.env['SMTP_PORT'];

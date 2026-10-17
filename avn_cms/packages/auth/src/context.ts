@@ -30,6 +30,8 @@ export interface Principal {
   actingTenantId: string | null;
   mfaEnabled: boolean;
   mfaVerified: boolean;
+  /** The role must use two-step verification (MFA_REQUIRED_ROLES) and has not turned it on yet. */
+  mfaSetupRequired: boolean;
   csrfToken: string;
 }
 

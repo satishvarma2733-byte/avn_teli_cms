@@ -14,6 +14,8 @@ separate `/platform` tree.
 
 ```
 /login                      public
+/login/mfa                  signed in, second factor pending: a code or a recovery code
+/login/mfa-setup            signed in, role must use two-step verification: set it up
 /forgot-password            public
 /reset-password/[token]     public
 
@@ -133,7 +135,11 @@ POST   /api/auth/login
 POST   /api/auth/logout
 POST   /api/auth/forgot-password
 POST   /api/auth/reset-password
-POST   /api/auth/mfa/enroll        POST /api/auth/mfa/verify
+POST   /api/auth/mfa/enroll        needs the password; returns the secret + QR
+POST   /api/auth/mfa/confirm       turns it on; returns the one-time recovery codes (shown once)
+POST   /api/auth/mfa/verify        sign-in: a 6-digit code or a recovery code
+POST   /api/auth/mfa/recovery-codes   a new set (needs a current code)
+POST   /api/auth/mfa/disable       needs a current code; refused for roles that must use it
 GET    /api/auth/sessions          DELETE /api/auth/sessions/:id   (logout other devices)
 ```
 

@@ -1,4 +1,11 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 
 import { getConfig } from '@avn-cms/config';
 
@@ -9,6 +16,14 @@ export function randomToken(bytes = 32): string {
 
 export function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+/**
+ * Keyed hash for secrets a person types back (recovery codes). Unlike a plain hash it cannot be
+ * guessed offline from a copy of the database, because the key lives only in the server's configuration.
+ */
+export function keyedHash(value: string): string {
+  return createHmac('sha256', key()).update(value).digest('hex');
 }
 
 export function safeEqual(a: string, b: string): boolean {

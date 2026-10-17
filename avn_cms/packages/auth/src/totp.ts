@@ -52,10 +52,23 @@ export function totpAt(secret: string, timeMs: number, stepSeconds = 30): string
   return code.toString().padStart(6, '0');
 }
 
+/**
+ * The 30-second step a code belongs to, or null when it is not valid. Accepts the current step and
+ * one either side (clock drift). A caller that remembers the newest step it accepted can refuse a
+ * code that is used twice.
+ */
+export function totpStep(secret: string, code: string, nowMs = Date.now()): number | null {
+  if (!/^\d{6}$/.test(code)) return null;
+  const current = Math.floor(nowMs / 1000 / 30);
+  for (const offset of [-1, 0, 1]) {
+    if (totpAt(secret, nowMs + offset * 30_000) === code) return current + offset;
+  }
+  return null;
+}
+
 /** Accepts the current code and one step either side (clock drift). */
 export function verifyTotp(secret: string, code: string, nowMs = Date.now()): boolean {
-  if (!/^\d{6}$/.test(code)) return false;
-  return [-1, 0, 1].some((w) => totpAt(secret, nowMs + w * 30_000) === code);
+  return totpStep(secret, code, nowMs) !== null;
 }
 
 export function otpauthUrl(secret: string, account: string, issuer = 'aVn CMS'): string {

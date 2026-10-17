@@ -1,3 +1,4 @@
+import { safeNextPath } from '@avn-cms/core';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
@@ -9,12 +10,12 @@ export const metadata: Metadata = { title: 'Sign in' };
 
 export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
   const principal = await getPrincipal();
-  if (principal && (!principal.mfaEnabled || principal.mfaVerified)) redirect(landingPath(principal));
+  if (principal && (!principal.mfaEnabled || principal.mfaVerified)) {
+    redirect(principal.mfaSetupRequired ? '/login/mfa-setup' : landingPath(principal));
+  }
   const sp = await searchParams;
-  const next =
-    typeof sp['next'] === 'string' && sp['next'].startsWith('/') && !sp['next'].startsWith('//')
-      ? sp['next']
-      : undefined;
+  // Only a page inside the signed-in areas: never another site, however the address is written.
+  const next = safeNextPath(sp['next']);
   return (
     <>
       <h1 className="text-lg font-semibold">Sign in to aVn CMS</h1>

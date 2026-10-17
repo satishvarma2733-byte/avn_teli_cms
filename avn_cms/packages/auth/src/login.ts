@@ -92,6 +92,7 @@ export async function login(
   const mfaRequired = user.mfaEnabledAt !== null;
   const session = await createSession({
     userId: user.id,
+    role: user.roleCode,
     mfaVerified: !mfaRequired,
     ip: meta.ip,
     userAgent: meta.userAgent,

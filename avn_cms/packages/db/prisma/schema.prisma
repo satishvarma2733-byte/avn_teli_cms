@@ -302,6 +302,11 @@ model User {
   /// TOTP secret, AES-256-GCM encrypted (packages/auth).
   mfaSecret        String?    @map("mfa_secret")
   mfaEnabledAt     DateTime?  @map("mfa_enabled_at") @db.Timestamptz(6)
+  /// The newest 30-second step of an accepted code: a code is good once (replay protection).
+  mfaLastStep      Int?       @map("mfa_last_step")
+  /// Wrong second-factor codes since the last good one; five in a row pauses second-factor checks.
+  mfaFailedCount   Int        @default(0) @map("mfa_failed_count")
+  mfaLockedUntil   DateTime?  @map("mfa_locked_until") @db.Timestamptz(6)
   lastLoginAt      DateTime?  @map("last_login_at") @db.Timestamptz(6)
   failedLoginCount Int        @default(0) @map("failed_login_count")
   lockedUntil      DateTime?  @map("locked_until") @db.Timestamptz(6)
@@ -310,10 +315,11 @@ model User {
   updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt        DateTime?  @map("deleted_at") @db.Timestamptz(6)
 
-  sessions    Session[]
-  resetTokens PasswordResetToken[]
-  assignments LeadAssignment[]     @relation("assignee")
-  followUps   FollowUp[]           @relation("followup_assignee")
+  sessions      Session[]
+  resetTokens   PasswordResetToken[]
+  recoveryCodes MfaRecoveryCode[]
+  assignments   LeadAssignment[]     @relation("assignee")
+  followUps     FollowUp[]           @relation("followup_assignee")
 
   // UNIQUE NULLS NOT DISTINCT (tenant_id, email) is created in SQL (migration 0001).
   @@index([tenantId, roleCode, status])
@@ -341,6 +347,19 @@ model Session {
 
   @@index([userId, revokedAt])
   @@map("sessions")
+}
+
+/// One-time codes for signing in when the authenticator app is lost. Only a keyed hash is stored.
+model MfaRecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("mfa_recovery_codes")
 }
 
 model PasswordResetToken {

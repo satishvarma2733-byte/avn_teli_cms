@@ -27,6 +27,21 @@ const envSchema = z
       .min(1)
       .max(24 * 90)
       .default(168),
+    // How many proxies in front of the app set X-Forwarded-For (a load balancer or CDN = 1). 0 ignores
+    // the header, so a caller cannot choose the address that rate limits and the audit log see.
+    TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    // Roles that must turn on two-step verification before they can use the app (comma separated,
+    // for example "SUPER_ADMIN,TENANT_ADMIN"). Empty: it stays optional for everyone.
+    MFA_REQUIRED_ROLES: z
+      .string()
+      .default('')
+      .transform((v) =>
+        v
+          .split(',')
+          .map((r) => r.trim().toUpperCase())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.enum(['SUPER_ADMIN', 'TENANT_ADMIN', 'COUNSELOR', 'TELECALLER']))),
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().optional(),
     SMTP_USER: z.string().optional(),

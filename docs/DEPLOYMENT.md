@@ -21,7 +21,7 @@ repeatable job if more run).
 The worker consumes two BullMQ queues: `avn-jobs` (imports, exports, document virus scans and automation runs) and `avn-system`
 (overdue sweep every 5 minutes, an automation sweep every 2 minutes that finds uncontacted leads and overdue calls for the time-based rules, queues runs whose hand-over was lost and recovers runs a crash cut off, with finished runs deleted after 90 days (`AUTOMATION.md` §2), expired-file cleanup hourly, and a stuck-jobs sweep every 2 minutes
 that marks imports and exports cut off by a worker crash as failed, so people can start over;
-see `IMPORT_EXPORT.md` §7; and a document sweep every 2 minutes that re-queues scans that never ran, removes blocked and long-deleted files, and drops abandoned uploads; see `DOCUMENTS.md` §8).
+see `IMPORT_EXPORT.md` §7; and a document sweep every 2 minutes that re-queues scans that never ran, removes blocked and long-deleted files, and drops abandoned uploads; see `DOCUMENTS.md` §8; and an hourly clean-up of ended sessions and used reset links, `SECURITY.md` §2.1).
 
 Without Redis the web app still works, but rate limits are per process, imports and exports run
 inside the web process (development only: a restart cuts them off), and the worker cannot run.
@@ -42,7 +42,9 @@ problems if any are invalid). Empty values mean "not set".
 | `REDIS_URL` | recommended (worker: required) | Rate limits + job queue |
 | `SESSION_SECRET` | yes | ≥ 32 random bytes, base64 |
 | `ENCRYPTION_KEY` | yes | ≥ 32 random bytes, base64 — encrypts MFA secrets. **Changing it invalidates every enrolled authenticator** |
-| `SESSION_TTL_HOURS` | no | Default 168 (7 days); idle sessions end after 48 h |
+| `SESSION_TTL_HOURS` | no | Default 168 (7 days); idle sessions end after 48 h. Platform (super-admin) sessions always end after 12 h (4 h idle) |
+| `TRUSTED_PROXY_HOPS` | **yes, behind a proxy** | How many proxies in front of the app add an `X-Forwarded-For` entry: `1` for one load balancer or CDN, `2` for a CDN then a load balancer. Default `0` ignores the header. Too low and every caller counts as one address (rate limits become site-wide); too high and a caller can choose their address. `SECURITY.md` §2.2 |
+| `MFA_REQUIRED_ROLES` | recommended | Comma-separated roles that must turn on two-step verification, for example `SUPER_ADMIN,TENANT_ADMIN`. Empty: optional for everyone |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | no | Without SMTP, invites/resets show the admin a one-time link instead; nothing claims an email was sent |
 | `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | for documents | Cloudflare R2 (S3 API). All four, in **both the web app and the worker**; without them the documents vault answers "storage is not set up" (503). A half-set group stops the process at start-up. Setup: `DOCUMENTS.md` §9 |
 | `R2_ENDPOINT` | no | Overrides `https://<account>.r2.cloudflarestorage.com`. Only for a local S3-compatible server; leave unset on R2 |
@@ -116,6 +118,27 @@ never rename or drop in the same release).
   the worker was restarted or killed mid-run.
 - Recommended alerts: health check failing; 5xx rate; intake 401 spike (a website with a
   revoked/rotated credential); worker not logging `overdue-sweep` for > 15 minutes; `automation run failed` or `automation run could not be queued` lines (the sweep queues the second kind again, but a steady stream means Redis or the worker is unhealthy).
+
+## 6a. Security checklist before go-live
+
+Details and reasons: `SECURITY.md`. Do these on the real host; none of them can be checked from a laptop.
+
+1. Serve only over **HTTPS** and set `APP_URL` to the `https://` origin (turns on `Secure` cookies, HSTS and
+   `upgrade-insecure-requests`). Redirect port 80 to 443 at the proxy.
+2. Set **`TRUSTED_PROXY_HOPS`** to the number of proxies in front of the app. Check it: sign in from two networks and
+   look at the address in My account → Where you're signed in (it must be each one's real address, not the proxy's).
+3. Set **`MFA_REQUIRED_ROLES=SUPER_ADMIN,TENANT_ADMIN`**, and have every admin enrol (and keep their recovery codes).
+4. Keep **Postgres, Redis, ClamAV and the worker off the public internet** (private network or security group). The web
+   app is the only public process. Postgres accepts the two application roles only.
+5. Put `SESSION_SECRET`, `ENCRYPTION_KEY`, both database URLs and the R2 keys in the host's **secret store**, not in the
+   image or the repository; the application role (`DATABASE_URL`) must be `avn_app`, never the owner.
+6. Run the worker (`avn-system` queue): besides the sweeps it deletes ended sessions and used reset links hourly.
+7. Let the proxy terminate TLS 1.2+ only, and **append** to (never trust) the client's `X-Forwarded-For`.
+8. Turn on the repository's **private vulnerability reporting**, Dependabot alerts and branch protection (CI and the
+   security workflow must pass before merge).
+9. Have an **independent penetration test** and a ZAP scan of staging done; fix what they find before real data goes in.
+10. Watch: sign-in failures and `auth.locked`/`auth.mfa_locked` audit entries, `automation run failed`, 5xx rate, the
+    health check (rate limits fall back to a per-instance floor if Redis is down).
 
 ## 7. Backups and recovery
 

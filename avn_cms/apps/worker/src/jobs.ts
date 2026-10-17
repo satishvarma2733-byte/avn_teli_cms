@@ -3,6 +3,7 @@ import {
   failStuckJobs,
   followups,
   maintainDocuments,
+  purgeAuthRecords,
   sweepAutomation,
 } from '@avn-cms/core';
 import { withTenant } from '@avn-cms/db';
@@ -135,4 +136,9 @@ export async function automationSweepAllTenants(now = new Date()) {
     }
   }
   return results;
+}
+
+/** Removes ended sessions and used reset links that are old enough to forget (not per workspace). */
+export async function authCleanup(now = new Date()) {
+  return purgeAuthRecords(now);
 }

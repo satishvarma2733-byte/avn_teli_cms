@@ -45,8 +45,9 @@ export function LoginForm({ next, reset }: { next?: string | undefined; reset?: 
     } catch {
       /* ignore */
     }
+    // A second step (code or setup) comes before the page they asked for.
     window.location.assign(
-      res.data.redirectTo === '/login/mfa' ? '/login/mfa' : (next ?? res.data.redirectTo),
+      res.data.redirectTo.startsWith('/login/') ? res.data.redirectTo : (next ?? res.data.redirectTo),
     );
   }
 

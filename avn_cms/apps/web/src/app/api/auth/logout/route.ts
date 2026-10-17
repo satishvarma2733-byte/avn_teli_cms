@@ -5,7 +5,7 @@ import { route } from '@/lib/api';
 import { clearSessionCookie } from '@/lib/cookies';
 
 export const POST = route(
-  { access: 'principal', allowPendingMfa: true },
+  { access: 'principal', allowPendingMfa: true, limit: 20 },
   async ({ principal, ip, userAgent }) => {
     await revokeSession(principal.sessionId);
     await auditAuth({

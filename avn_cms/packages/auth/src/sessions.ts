@@ -4,24 +4,38 @@ import { ownerDb } from '@avn-cms/db/owner';
 import type { Principal } from './context';
 import { randomToken, sha256 } from './crypto';
 
-/** Idle sessions end after this long without a request. */
-const IDLE_MS = 48 * 3_600_000;
 /** lastSeenAt is written at most this often (keeps reads cheap). */
 const TOUCH_MS = 5 * 60_000;
+/** A person keeps at most this many signed-in devices; signing in on one more ends the oldest. */
+export const MAX_SESSIONS_PER_USER = 20;
+
+/**
+ * How long a session may last. Everyone: ended after SESSION_TTL_HOURS, or 48 hours without a request.
+ * Platform (super-admin) sessions can reach every workspace, so they end sooner: 12 hours in all and
+ * 4 hours without a request.
+ */
+export function sessionLimits(role: string, ttlHours: number): { idleMs: number; maxMs: number } {
+  const hour = 3_600_000;
+  return role === 'SUPER_ADMIN'
+    ? { idleMs: 4 * hour, maxMs: Math.min(ttlHours, 12) * hour }
+    : { idleMs: 48 * hour, maxMs: ttlHours * hour };
+}
 
 export const SESSION_COOKIE = 'avn_session';
 export const CSRF_COOKIE = 'avn_csrf';
 
 export async function createSession(input: {
   userId: string;
+  role: string;
   mfaVerified: boolean;
   ip?: string | undefined;
   userAgent?: string | undefined;
 }): Promise<{ token: string; csrfToken: string; expiresAt: Date }> {
   const token = randomToken();
   const csrfToken = randomToken();
-  const expiresAt = new Date(Date.now() + getConfig().SESSION_TTL_HOURS * 3_600_000);
-  await ownerDb().session.create({
+  const expiresAt = new Date(Date.now() + sessionLimits(input.role, getConfig().SESSION_TTL_HOURS).maxMs);
+  const db = ownerDb();
+  await db.session.create({
     data: {
       userId: input.userId,
       tokenHash: sha256(token),
@@ -32,6 +46,19 @@ export async function createSession(input: {
       expiresAt,
     },
   });
+  // Keep only the newest MAX_SESSIONS_PER_USER sessions (a forgotten device does not pile up forever).
+  const live = await db.session.findMany({
+    where: { userId: input.userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+    skip: MAX_SESSIONS_PER_USER,
+  });
+  if (live.length > 0) {
+    await db.session.updateMany({
+      where: { id: { in: live.map((s) => s.id) } },
+      data: { revokedAt: new Date() },
+    });
+  }
   return { token, csrfToken, expiresAt };
 }
 
@@ -48,8 +75,9 @@ export async function validateSession(token: string | undefined): Promise<Princi
   });
   if (!session || session.revokedAt) return null;
   const now = Date.now();
-  if (session.expiresAt.getTime() <= now || now - session.lastSeenAt.getTime() > IDLE_MS) return null;
   const { user } = session;
+  const { idleMs } = sessionLimits(user.roleCode, getConfig().SESSION_TTL_HOURS);
+  if (session.expiresAt.getTime() <= now || now - session.lastSeenAt.getTime() > idleMs) return null;
   if (user.status !== 'ACTIVE' || user.deletedAt) return null;
   if (user.tenant && user.tenant.status === 'SUSPENDED') return null;
 
@@ -72,6 +100,7 @@ export async function validateSession(token: string | undefined): Promise<Princi
     actingTenantId,
     mfaEnabled: user.mfaEnabledAt !== null,
     mfaVerified: session.mfaVerified,
+    mfaSetupRequired: user.mfaEnabledAt === null && getConfig().MFA_REQUIRED_ROLES.includes(user.roleCode),
     csrfToken: session.csrfSecret,
   };
 }

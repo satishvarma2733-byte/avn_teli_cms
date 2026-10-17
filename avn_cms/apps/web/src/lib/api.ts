@@ -11,8 +11,9 @@ import {
   type Principal,
 } from '@avn-cms/auth';
 import { getConfig } from '@avn-cms/config';
-import { AppError, rateLimit } from '@avn-cms/core';
-import { TenantScopeViolation } from '@avn-cms/db';
+import { AppError, clientIpFrom, rateLimit } from '@avn-cms/core';
+import { can, type Action } from '@avn-cms/core/policy';
+import { TenantScopeViolation, type RoleCode } from '@avn-cms/db';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ZodError, type ZodType } from 'zod';
 
@@ -30,6 +31,21 @@ interface RouteOptions {
   bucket?: string;
   /** Only for the second-factor and sign-out routes: allow a session that hasn't passed MFA yet. */
   allowPendingMfa?: boolean;
+  /**
+   * The policy action this route performs. It is checked at the gate, before the request body is read:
+   * a role the RBAC matrix refuses is turned away with 403 and learns nothing about the route's input.
+   * (The service still checks the record itself.)
+   */
+  action?: Action;
+  /** Only these roles may call the route (platform routes, the folder vault: things the matrix doesn't list). */
+  roles?: RoleCode[];
+  /** Only for the enrolment routes: allow a role that must set up two-step verification but hasn't yet. */
+  allowMfaSetup?: boolean;
+  /**
+   * For public routes that browsers call from our own pages (sign-in, password reset): refuse a
+   * request that a page on another site started. Machine callers (intake) don't set this.
+   */
+  browserOnly?: boolean;
 }
 
 export interface HandlerInput {
@@ -61,8 +77,9 @@ export function ok(data: unknown, meta?: Record<string, unknown>, status = 200):
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+/** The caller's address: only the forwarding entries added by proxies we run are believed (see clientIpFrom). */
 export function clientIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'local';
+  return clientIpFrom((name) => req.headers.get(name), getConfig().TRUSTED_PROXY_HOPS);
 }
 
 export function errorResponse(
@@ -78,8 +95,12 @@ export function errorResponse(
   );
 }
 
-/** Same-origin check for cookie-authenticated mutations (defence in depth with the CSRF token). */
+/**
+ * Same-origin check for cookie-authenticated mutations (defence in depth with the CSRF token): the
+ * browser says the request came from another site (`Sec-Fetch-Site`), or from another origin.
+ */
 function sameOrigin(req: NextRequest): boolean {
+  if (req.headers.get('sec-fetch-site') === 'cross-site') return false;
   const origin = req.headers.get('origin');
   if (!origin) return true; // non-browser clients; the CSRF header is still required
   try {
@@ -119,12 +140,33 @@ export function route(options: RouteOptions, handler: (input: never) => Promise<
 
       let input: HandlerInput | PrincipalInput | TenantInput = base;
       let limiterKey = `ip:${ip}`;
+      if (access === 'public' && options.browserOnly && MUTATING.has(req.method) && !sameOrigin(req)) {
+        return errorResponse('FORBIDDEN', 'This request must come from the aVn CMS pages.');
+      }
       if (access !== 'public') {
         const principal = await validateSession(req.cookies.get(SESSION_COOKIE)?.value);
-        if (!principal) return errorResponse('UNAUTHENTICATED', 'Sign in to continue.');
+        if (!principal) {
+          // Requests with no (or a bad) session are counted per caller, so guessing tokens or flooding
+          // the API without signing in is capped before it costs more than a lookup.
+          const anon = await rateLimit(`anon:${ip}`, 120, 60);
+          if (!anon.allowed) {
+            return errorResponse('RATE_LIMITED', 'Too many requests. Please wait a moment.', undefined, {
+              'Retry-After': String(anon.retryAfterSeconds),
+            });
+          }
+          return errorResponse('UNAUTHENTICATED', 'Sign in to continue.');
+        }
         if (principal.mfaEnabled && !principal.mfaVerified && !options.allowPendingMfa) {
           return errorResponse('UNAUTHENTICATED', 'Finish two-step verification to continue.', {
             mfaRequired: true,
+          });
+        }
+        if (options.roles && !options.roles.includes(principal.role)) {
+          return errorResponse('FORBIDDEN', 'You do not have permission to do this.');
+        }
+        if (principal.mfaSetupRequired && !options.allowPendingMfa && !options.allowMfaSetup) {
+          return errorResponse('FORBIDDEN', 'Turn on two-step verification to continue.', {
+            mfaSetupRequired: true,
           });
         }
         if (MUTATING.has(req.method)) {
@@ -135,11 +177,22 @@ export function route(options: RouteOptions, handler: (input: never) => Promise<
               'Your session token is missing or expired. Reload the page and try again.',
             );
           }
+          // Bodies are JSON or an upload form. Anything else (a cross-site <form> sending text/plain)
+          // is refused before it is read.
+          const type = req.headers.get('content-type') ?? '';
+          const hasBody =
+            Number(req.headers.get('content-length') ?? 0) > 0 || req.headers.has('transfer-encoding');
+          if (hasBody && !/^(application\/json|multipart\/form-data)\b/i.test(type)) {
+            return errorResponse('VALIDATION_ERROR', 'Send the request as JSON.');
+          }
         }
         limiterKey = `user:${principal.userId}`;
         if (access === 'tenant') {
           const ctx = contextFor(principal, { ip, ...(userAgent ? { userAgent } : {}) });
           if (!ctx) return errorResponse('FORBIDDEN', 'Choose a workspace to continue.');
+          if (options.action && !can(ctx, options.action)) {
+            return errorResponse('FORBIDDEN', 'You do not have permission to do this.');
+          }
           input = { ...base, principal, ctx };
         } else {
           input = { ...base, principal };

@@ -77,12 +77,24 @@ tenants ─┬─< users ─────< lead_assignments >──── leads >
 | password_hash | text | Argon2id |
 | status | enum(`ACTIVE`,`DISABLED`) | |
 | mfa_secret | text null | TOTP, encrypted |
+| mfa_enabled_at | timestamptz null | set when two-step verification is on |
+| mfa_last_step | int null | newest accepted 30-second step: a code works once |
+| mfa_failed_count / mfa_locked_until | int / timestamptz null | five wrong second-factor codes in a row pause checks |
+| failed_login_count / locked_until | int / timestamptz null | wrong passwords; pause with backoff |
 | last_login_at | timestamptz null | |
 | created_at / updated_at / deleted_at | | |
 
+> **Privileges (Phase 9):** the application role `avn_app` can read and change only the non-credential columns of
+> `users` (`password_hash`, `mfa_*`, `failed_login_count`, `locked_until` are owner-only; `INSERT` stays whole-row
+> for invites). `sessions`, `password_reset_tokens` and `mfa_recovery_codes` have no grant to `avn_app` at all.
+>
 > A departing user cannot be hard-deleted while owning leads — the service forces
 > **transfer-on-delete** (reassign their leads) first. Enforced in `users` service +
 > checked by FK `ON DELETE RESTRICT` on `lead_assignments.assignee_id`.
+
+### `mfa_recovery_codes` (owner-only)
+`id, user_id fk (on delete cascade), code_hash unique (HMAC-SHA-256 keyed with ENCRYPTION_KEY), used_at null, created_at`.
+Ten per person, replaced as a set; a used code stays (marked used) so reuse is visible.
 
 ### `students` (the person)
 | column | type | notes |

@@ -1,8 +1,9 @@
 'use client';
 
-import { Laptop, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Laptop } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
+import { MfaCard } from '@/components/account/mfa-card';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Alert, Badge, Card, CardHeader } from '@/components/ui/primitives';
@@ -43,11 +44,19 @@ function deviceName(ua: string | null): string {
   return os ? `${browser} on ${os}` : browser;
 }
 
-export function AccountPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
+export function AccountPanel({
+  mfaEnabled,
+  recoveryCodesLeft,
+  mfaRequired,
+}: {
+  mfaEnabled: boolean;
+  recoveryCodesLeft: number;
+  mfaRequired: boolean;
+}) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <PasswordCard />
-      <MfaCard initiallyEnabled={mfaEnabled} />
+      <MfaCard initiallyEnabled={mfaEnabled} recoveryCodesLeft={recoveryCodesLeft} required={mfaRequired} />
       <div className="lg:col-span-2">
         <SessionsCard />
       </div>
@@ -119,126 +128,6 @@ function PasswordCard() {
         <Button onClick={save} loading={busy} disabled={!current || !next}>
           Change password
         </Button>
-      </div>
-    </Card>
-  );
-}
-
-function MfaCard({ initiallyEnabled }: { initiallyEnabled: boolean }) {
-  const api = useApi();
-  const [enabled, setEnabled] = useState(initiallyEnabled);
-  const [setup, setSetup] = useState<{ secret: string; qr: string } | null>(null);
-  const [code, setCode] = useState('');
-  const [disabling, setDisabling] = useState(false);
-  const [msg, setMsg] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function start() {
-    setMsg(null);
-    const res = await api<{ secret: string; qr: string }>('/api/auth/mfa/enroll', { method: 'POST' });
-    if (!res.ok) return setMsg({ tone: 'danger', text: res.error.message });
-    setSetup(res.data);
-  }
-  async function confirm() {
-    setBusy(true);
-    const res = await api('/api/auth/mfa/confirm', { body: { code } });
-    setBusy(false);
-    if (!res.ok) return setMsg({ tone: 'danger', text: res.error.message });
-    setEnabled(true);
-    setSetup(null);
-    setCode('');
-    setMsg({
-      tone: 'success',
-      text: 'Two-step verification is on. You will be asked for a code at each sign-in.',
-    });
-  }
-  async function disable() {
-    setBusy(true);
-    const res = await api('/api/auth/mfa/disable', { body: { code } });
-    setBusy(false);
-    if (!res.ok) return setMsg({ tone: 'danger', text: res.error.message });
-    setEnabled(false);
-    setDisabling(false);
-    setCode('');
-    setMsg({ tone: 'success', text: 'Two-step verification is off.' });
-  }
-
-  return (
-    <Card>
-      <CardHeader
-        title="Two-step verification"
-        description="A 6-digit code from an authenticator app at each sign-in."
-        actions={
-          enabled ? (
-            <Badge tone="success">
-              <ShieldCheck className="size-3" /> On
-            </Badge>
-          ) : (
-            <Badge>
-              <ShieldOff className="size-3" /> Off
-            </Badge>
-          )
-        }
-      />
-      <div className="space-y-4 p-5 text-sm">
-        {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-        {!enabled && !setup && <Button onClick={start}>Set up two-step verification</Button>}
-        {setup && (
-          <div className="space-y-4">
-            <p>
-              Scan this with Google Authenticator, Microsoft Authenticator or similar, then enter the code it
-              shows.
-            </p>
-            <img
-              src={setup.qr}
-              alt="QR code for your authenticator app"
-              className="size-48 rounded-lg border border-border bg-white p-2"
-            />
-            <p className="text-muted-foreground">
-              Can&apos;t scan? Enter this key:{' '}
-              <code className="break-all text-foreground">{setup.secret}</code>
-            </p>
-            <div className="flex gap-2">
-              <Input
-                aria-label="Verification code"
-                inputMode="numeric"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                className="w-36 text-center tracking-[0.3em]"
-              />
-              <Button onClick={confirm} loading={busy} disabled={code.length !== 6}>
-                Turn on
-              </Button>
-            </div>
-          </div>
-        )}
-        {enabled && !disabling && (
-          <Button variant="secondary" onClick={() => setDisabling(true)}>
-            Turn off
-          </Button>
-        )}
-        {enabled && disabling && (
-          <div className="space-y-2">
-            <p>Enter a current code to turn two-step verification off.</p>
-            <div className="flex gap-2">
-              <Input
-                aria-label="Verification code"
-                inputMode="numeric"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                className="w-36 text-center tracking-[0.3em]"
-              />
-              <Button variant="danger" onClick={disable} loading={busy} disabled={code.length !== 6}>
-                Turn off
-              </Button>
-              <Button variant="ghost" onClick={() => setDisabling(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     </Card>
   );

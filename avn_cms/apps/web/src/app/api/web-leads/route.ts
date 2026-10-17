@@ -3,7 +3,7 @@ import { webLeadListQuerySchema } from '@avn-cms/core/schemas';
 
 import { ok, query, route } from '@/lib/api';
 
-export const GET = route({}, async ({ req, ctx }) => {
+export const GET = route({ action: 'webLead:view' }, async ({ req, ctx }) => {
   const page = await webLeads.listInbox(ctx, query(req, webLeadListQuerySchema));
   return ok(page.items, { nextCursor: page.nextCursor, counts: page.counts });
 });

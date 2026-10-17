@@ -71,7 +71,7 @@ export async function createUser(ctx: Ctx, dto: z.output<typeof userCreateSchema
   if (dto.phone && !phoneE164)
     throw invalid('Enter a valid phone number.', { fields: { phone: 'Enter a valid phone number.' } });
   const user = await withTenant(ctx.tenantId, async (db) => {
-    if (await db.user.findFirst({ where: { email: dto.email } })) {
+    if (await db.user.findFirst({ where: { email: dto.email }, select: { id: true } })) {
       throw conflict('Someone in this workspace already uses that email.', {
         fields: { email: 'Already in use.' },
       });
@@ -115,7 +115,10 @@ export async function updateUser(ctx: Ctx, id: string, dto: z.output<typeof user
   }
   let disabled = false;
   const result = await withTenant(ctx.tenantId, async (db) => {
-    const user = await db.user.findFirst({ where: { id, deletedAt: null } });
+    const user = await db.user.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, roleCode: true, status: true, name: true },
+    });
     if (!user) throw notFound('User');
     const losingAdmin =
       user.roleCode === 'TENANT_ADMIN' &&
@@ -177,8 +180,11 @@ export async function transferLeads(ctx: Ctx, fromId: string, dto: z.output<type
   return withTenant(
     ctx.tenantId,
     async (db) => {
-      const from = await db.user.findFirst({ where: { id: fromId, deletedAt: null } });
-      const to = await db.user.findFirst({ where: { id: dto.toUserId, deletedAt: null, status: 'ACTIVE' } });
+      const from = await db.user.findFirst({ where: { id: fromId, deletedAt: null }, select: { id: true } });
+      const to = await db.user.findFirst({
+        where: { id: dto.toUserId, deletedAt: null, status: 'ACTIVE' },
+        select: { id: true, name: true, roleCode: true },
+      });
       if (!from) throw notFound('User');
       if (!to)
         throw invalid('Choose an active user to receive the leads.', {
@@ -231,7 +237,10 @@ export async function deleteUser(ctx: Ctx, id: string) {
   authorize(ctx, 'user:delete');
   if (id === ctx.userId) throw forbidden('You can’t delete your own account.');
   await withTenant(ctx.tenantId, async (db) => {
-    const user = await db.user.findFirst({ where: { id, deletedAt: null } });
+    const user = await db.user.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, email: true, roleCode: true },
+    });
     if (!user) throw notFound('User');
     const owned = await db.leadAssignment.count({ where: { assigneeId: id, isActive: true } });
     const calls = await db.followUp.count({ where: { assigneeId: id, completedAt: null } });

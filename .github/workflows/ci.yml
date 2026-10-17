@@ -1,0 +1,87 @@
+name: CI
+
+# Lint, types, formatting, unit, integration (real Postgres, Redis, MinIO, ClamAV) and browser tests.
+# Security scanning is in security.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: avn_cms
+
+jobs:
+  checks:
+    name: Checks and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Docker Hub no longer serves new pulls of minio/minio; Quay does.
+      MINIO_IMAGE: quay.io/minio/minio:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: avn_cms/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: avn_cms/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Throwaway secrets for this run only; every other value is the local-only default.
+      - name: Configure
+        run: |
+          cp .env.example .env
+          node -e "const c=require('crypto'),fs=require('fs');let t=fs.readFileSync('.env','utf8');t=t.replace(/^SESSION_SECRET=.*\$/m,'SESSION_SECRET='+c.randomBytes(32).toString('base64')).replace(/^ENCRYPTION_KEY=.*\$/m,'ENCRYPTION_KEY='+c.randomBytes(32).toString('base64'));fs.writeFileSync('.env',t)"
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Formatting
+        run: pnpm format:check
+
+      - name: Types
+        run: pnpm typecheck
+
+      - name: Services (Postgres, Redis, MinIO, ClamAV)
+        run: pnpm stack:up
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      - name: Browser tests
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm test:e2e
+
+      - name: Keep the browser report when something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            avn_cms/playwright-report
+            avn_cms/test-results
+          retention-days: 7
+
+      - name: Stop services
+        if: always()
+        run: pnpm stack:down

@@ -5,7 +5,7 @@ import { jsonBody, ok, route } from '@/lib/api';
 
 /** Suspend / reactivate a tenant. */
 export const PATCH = route(
-  { access: 'principal', limit: 30 },
+  { roles: ['SUPER_ADMIN'], access: 'principal', limit: 30 },
   async ({ req, principal, params, ip, userAgent }) => {
     const { status } = await jsonBody(req, platform.tenantStatusSchema);
     return ok(

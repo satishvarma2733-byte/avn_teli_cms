@@ -13,7 +13,7 @@ export const GET = route({}, async ({ req, ctx }) => {
 });
 
 /** Add Student: creates the student and their first lead (with dedupe on phone). */
-export const POST = route({ limit: 60 }, async ({ req, ctx }) => {
+export const POST = route({ action: 'student:create', limit: 60 }, async ({ req, ctx }) => {
   const dto = await jsonBody(req, studentCreateSchema);
   return ok(await leads.createStudent(ctx, dto), undefined, 201);
 });

@@ -303,7 +303,7 @@ test.describe('admin: rules', () => {
     await page.goto('/app/automations');
     await page.getByRole('tab', { name: 'Run log' }).click();
     await page.getByLabel('Rule').selectOption({ label: RULES.overdue });
-    const run = page.getByRole('listitem').filter({ hasText: lead.name });
+    const run = page.getByRole('listitem').filter({ hasText: lead.name }).filter({ hasText: RULES.overdue });
     await expect(run).toContainText('Escalated; told');
     await expectAccessible(page);
 
