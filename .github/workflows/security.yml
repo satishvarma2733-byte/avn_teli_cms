@@ -27,7 +27,7 @@ jobs:
         working-directory: avn_cms
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: avn_cms/package.json
       - uses: actions/setup-node@v4
