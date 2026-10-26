@@ -48,7 +48,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.0",
     "@playwright/test": "^1.63.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.5",
     "bullmq": "6.3.9",
     "eslint": "^10.11.0",
     "exceljs": "^4.4.0",
