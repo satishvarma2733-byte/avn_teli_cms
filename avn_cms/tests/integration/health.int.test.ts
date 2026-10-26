@@ -14,6 +14,7 @@ describe('GET /api/health', () => {
       redis: 'not_configured',
       storage: 'up',
       scanner: 'up',
+      worker: 'not_configured',
     });
   });
 });

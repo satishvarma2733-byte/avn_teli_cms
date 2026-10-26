@@ -74,6 +74,8 @@ export function LeadsWorkspace({
 
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  /** False when the workspace has more matches than the list counts ("10,000+"). */
+  const [totalExact, setTotalExact] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -125,7 +127,10 @@ export function LeadsWorkspace({
       setError(null);
       setRows((prev) => (after ? [...prev, ...res.data] : res.data));
       setCursor((res.meta?.['nextCursor'] as string | null) ?? null);
-      if (!after) setTotal((res.meta?.['total'] as number | undefined) ?? null);
+      if (!after) {
+        setTotal((res.meta?.['total'] as number | undefined) ?? null);
+        setTotalExact(res.meta?.['totalExact'] !== false);
+      }
     },
     [api, queryString],
   );
@@ -440,7 +445,7 @@ export function LeadsWorkspace({
           <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
             <span>
               Showing {rows.length.toLocaleString('en-IN')}
-              {total !== null ? ` of ${total.toLocaleString('en-IN')}` : ''}
+              {total !== null ? ` of ${total.toLocaleString('en-IN')}${totalExact ? '' : '+'}` : ''}
             </span>
             {cursor && (
               <Button variant="secondary" size="sm" onClick={loadMore} loading={loadingMore}>

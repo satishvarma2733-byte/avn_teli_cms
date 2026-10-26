@@ -16,6 +16,8 @@ export function useTestDatabases(): void {
   delete process.env['REDIS_URL'];
   // Test requests carry one X-Forwarded-For address each, as if one proxy sat in front of the app.
   process.env['TRUSTED_PROXY_HOPS'] = '1';
+  // Dashboards and reports are computed fresh in tests, so a test sees what it just wrote.
+  process.env['REPORT_CACHE_SECONDS'] = '0';
   // Two-step verification is optional unless a test asks for it.
   delete process.env['MFA_REQUIRED_ROLES'];
   // Tests never send email (the "not configured" path is what they exercise).

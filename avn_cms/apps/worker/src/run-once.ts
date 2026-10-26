@@ -7,6 +7,7 @@ import {
   documentMaintenanceAllTenants,
   overdueSweepAllTenants,
   stuckJobsSweepAllTenants,
+  usageSnapshot,
 } from './jobs';
 
 /** Run the overdue, stuck-jobs and documents sweeps once without Redis (cron fallback / manual operations). */
@@ -18,6 +19,8 @@ const docs = await documentMaintenanceAllTenants();
 console.log(JSON.stringify({ level: 'info', msg: 'documents sweep', results: docs }));
 const automation = await automationSweepAllTenants();
 console.log(JSON.stringify({ level: 'info', msg: 'automation sweep', results: automation }));
+const snapshot = await usageSnapshot();
+console.log(JSON.stringify({ level: 'info', msg: 'usage snapshot', results: snapshot }));
 const auth = await authCleanup();
 console.log(JSON.stringify({ level: 'info', msg: 'auth cleanup', results: auth }));
 // Without Redis the runs the sweep found are carried out in this process; let them finish.

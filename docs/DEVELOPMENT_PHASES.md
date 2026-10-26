@@ -243,7 +243,27 @@ observability (structured logs, error tracking, uptime); backups + restore drill
 succeeds; runbook complete.
 
 **Docs:** `TEST_PLAN.md`, `DEPLOYMENT.md`, `SCALABILITY.md`, `UX_IMPROVEMENTS.md`,
-`IMPROVEMENT_ROADMAP.md`, `AI_ROADMAP.md`.
+`IMPROVEMENT_ROADMAP.md`, `AI_ROADMAP.md` — plus `RUNBOOK.md` and the eight spec documents that were still missing
+(`PRODUCT_OVERVIEW`, `FEATURES`, `USER_ROLES`, `STUDENT_LIFECYCLE`, `FOLLOWUP_ENGINE`, `API_SPEC`, `AUDIT_LOGGING`,
+`REPORTING`).
+
+**Status (2026-10-26):** Verified locally: lint, typecheck, format, 285 unit, 237 integration, 48 e2e. The exit
+criteria are met on a laptop: the load test at 1,000,000 leads has no errors and every kind of request inside its latency
+target at the target pace (150 staff, one action each about 5 seconds: p50 48 ms, p95 211 ms, p99 428 ms, 29 requests a
+second), and at 7× that pace one web server saturates at about 70 requests a second while three give 117 (`SCALABILITY.md`);
+the restore drill passes (a 9.9-million-row, 3.9 GB database: 555 MB backup in 46.5 s, restored in 151.8 s, all six checks
+green: `RUNBOOK.md` §5); the runbook is written. Not done: anything that needs a real host, real R2, or an outside party
+(`IMPROVEMENT_ROADMAP.md` P0).
+
+**Decisions (2026-10-26):** the load test found that **row-level security stops Postgres using trigram indexes for the
+application role**, so student search runs in a tenant-locked `SECURITY DEFINER` function (`search_student_ids`); list
+totals stop at "1,000+" (a count with a limit is `ORDER BY id`); dashboard and report answers are kept for a minute
+(`REPORT_CACHE_SECONDS`, stale-while-revalidate, shared through Redis) while a person's own cards and queue are never
+cached; plans are limits in `plans.limits` enforced where things are added, with website enquiries never refused and
+usage snapshotted monthly into `usage_counters` (no payments); observability is built from standard parts (JSON logs,
+`X-Request-Id`, a worker heartbeat in `/api/health`, a token-protected Prometheus `/api/metrics`) with
+`shared/observability.ts` as the one place an error tracker would plug in; a write's rate limit is counted apart from
+reads of the same path; `RUNBOOK.md` was added as a document of its own.
 
 ---
 
@@ -254,33 +274,33 @@ The spec asks for 20 Markdown docs. Here's where each is produced so none is mis
 | Doc | Produced in |
 |---|---|
 | README.md | Phase 0 ✅ |
-| PRODUCT_OVERVIEW.md | Phase 0 (fold into README) / Phase 1 |
-| FEATURES.md | grows Phases 2–8 |
-| USER_ROLES.md | Phase 1 |
+| PRODUCT_OVERVIEW.md | Phase 10 ✅ |
+| FEATURES.md | Phase 10 ✅ |
+| USER_ROLES.md | Phase 10 ✅ |
 | RBAC_MATRIX.md | Phase 0 ✅ |
-| STUDENT_LIFECYCLE.md | Phase 2 |
-| FOLLOWUP_ENGINE.md | Phase 3 |
+| STUDENT_LIFECYCLE.md | Phase 10 ✅ |
+| FOLLOWUP_ENGINE.md | Phase 10 ✅ |
 | PAGES_AND_ROUTES.md | Phase 0 ✅ |
 | DATABASE_SCHEMA.md | Phase 0 ✅ (kept in sync with migrations) |
-| API_SPEC.md | Phases 2–8 (per-module, consolidated) |
-| SECURITY.md | Phase 1 draft → Phase 9 final |
-| AUDIT_LOGGING.md | Phase 1 |
-| IMPORT_EXPORT.md | Phase 6 |
-| REPORTING.md | Phase 4 |
-| TEST_PLAN.md | Phase 10 (suites written each phase) |
-| UX_IMPROVEMENTS.md | Phase 10 (tracked throughout) |
-| IMPROVEMENT_ROADMAP.md | Phase 10 (P0–P3 groups) |
-| DEPLOYMENT.md | Phase 10 |
-| SCALABILITY.md | Phase 10 |
-| AI_ROADMAP.md | Phase 10 |
+| API_SPEC.md | Phase 10 ✅ |
+| SECURITY.md | Phase 9 ✅ (Phase 10 adds the search function, logs and metrics) |
+| AUDIT_LOGGING.md | Phase 10 ✅ |
+| IMPORT_EXPORT.md | Phase 6 ✅ |
+| REPORTING.md | Phase 10 ✅ |
+| TEST_PLAN.md | Phase 10 ✅ |
+| UX_IMPROVEMENTS.md | Phase 10 ✅ |
+| IMPROVEMENT_ROADMAP.md | Phase 10 ✅ |
+| DEPLOYMENT.md | Phase 10 ✅ |
+| SCALABILITY.md | Phase 10 ✅ |
+| AI_ROADMAP.md | Phase 10 ✅ |
+| RUNBOOK.md (added in Phase 10: the exit criterion "runbook complete") | Phase 10 ✅ |
 | (ARCHITECTURE.md, MODULE_STRUCTURE.md, DEVELOPMENT_PHASES.md) | Phase 0 ✅ |
 
 ---
 
 ## Open items
 
-1. **CI:** the code is on GitHub (`satishvarma2733-byte/avn_teli_cms`, branch `main`); add a
-   workflow that runs lint, typecheck, unit, integration and e2e on every push.
+1. **CI:** the code is on GitHub (`satishvarma2733-byte/avn_teli_cms`, branch `main`); the workflows that run lint, typecheck, unit, integration, e2e and the security scans are written (`.github/workflows`) but have not run on GitHub yet.
 2. **Stack:** built as written (Next.js + Prisma + Postgres), with the documented swaps in
    `MODULE_STRUCTURE.md` → "As built" and `PROJECT_AUDIT.md` §5.
 3. **Hosting target** for staging/production (Node server, Postgres 15+, Redis).

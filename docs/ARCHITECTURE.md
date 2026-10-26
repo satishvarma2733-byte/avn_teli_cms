@@ -232,7 +232,11 @@ Target: 10k+ leads per tenant now, 1M+ later. Principles baked into the architec
 - **OpenSearch** is an explicit later option if free-text lead search outgrows Postgres
   trigram indexes — the repository layer isolates search so this swap is local.
 
-Details in `docs/SCALABILITY.md` (later phase).
+Measured at 1,000,000 leads, with what was found and changed, in `SCALABILITY.md`. Two things the load test taught
+that shape the design (details there and in `DATABASE_SCHEMA.md`): **row-level security stops Postgres using trigram
+(and any other non-leakproof) indexes for the application role**, so student search goes through a tenant-locked
+`SECURITY DEFINER` function; and **a count with a `take` is `ORDER BY id`**, so list totals stop at "1,000+" and are
+counted newest-first like the list. Dashboard and report answers are kept for a minute (`shared/cache.ts`).
 
 ---
 
@@ -277,6 +281,13 @@ Full threat-model-by-category in `docs/SECURITY.md` (later phase).
   (`connection()` in the root layout) so the nonce is always applied.
 - **Login identity.** Users are unique per tenant, so sign-in is workspace (tenant slug) +
   email + password; an empty workspace means a platform (super-admin) account.
+- **Observability (Phase 10).** Every API response carries `X-Request-Id`; one JSON log line per event (access log of
+  failures and slow requests, unhandled errors with the same id, `render error` from `instrumentation.ts`); the worker
+  writes a Redis heartbeat that `/api/health` reports; `/api/metrics` (token-protected, Prometheus text) exposes
+  dependency state, job counts and per-instance request counters. `shared/observability.ts` is the single place errors
+  are recorded, so an error tracker can be added without touching callers. `RUNBOOK.md` §2.
+- **Plans and usage (Phase 10).** `plans.limits` are checked in the services that add users, students, converted web
+  leads, imports and documents (`usage/usage.service.ts`); the worker snapshots usage monthly into `usage_counters`.
 
 ## 10. Key decisions log
 

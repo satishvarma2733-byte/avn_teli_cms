@@ -62,6 +62,8 @@ tenants ─┬─< users ─────< lead_assignments >──── leads >
 ### `subscriptions`
 `id, tenant_id, plan_id, status(ACTIVE|PAST_DUE|CANCELED), period_start, period_end, created_at`. Usage counters live in `usage_counters (tenant_id, metric, period, value)` — billing stays loosely coupled from CRM logic.
 
+**As built (Phase 10).** `plans.limits` holds `max_users`, `max_leads` and `storage_mb` (a missing or null key means unlimited; `automation_runs` and `comms_quota` are not enforced yet). The limits are enforced where rows are added (`usage/usage.service.ts`), never by the database. The worker writes one `usage_counters` row per tenant, metric (`users`, `leads`, `storage_bytes`, `automation_runs`) and month (`YYYY-MM`) every hour, updating it in place, so a bill can be produced from this table alone. `SCALABILITY.md` §7.
+
 ### `roles` (global catalog)
 `id, code(SUPER_ADMIN|TENANT_ADMIN|COUNSELOR|TELECALLER), name`. Permissions are code-defined (see `RBAC_MATRIX.md`), not rows, so the matrix is versioned with the app.
 
@@ -274,6 +276,25 @@ CALL_BACK_LATER, INTERESTED, NOT_INTERESTED, AWAITING_FEEDBACK, ESCALATED
 | intake_credentials | `UNIQUE(username)`, `(tenant_id) WHERE revoked_at IS NULL` | intake auth lookup |
 | audit_logs | `(tenant_id, entity_type, entity_id, created_at desc)` | entity audit view |
 
+**Added by the load test at 1,000,000 leads** (migration `scale_indexes`; `SCALABILITY.md` §4). None of these can be written in `schema.prisma`, except the first, so the migration is hand-written and `prisma migrate diff` shows them as the only difference:
+
+| Table | Index | Serves |
+|---|---|---|
+| students | `students_parent_name_trgm` — `gin (parent_name gin_trgm_ops)` | parent's-name search (the name and phone searches already had theirs) |
+| lead_status_history | `lead_status_history_funnel_idx` — `(tenant_id, lead_id) INCLUDE (to_stage)` | the conversion funnel reads each lead's furthest stage index-only |
+| follow_ups | `follow_ups_done_idx` — `(tenant_id, completed_at) WHERE completed_at IS NOT NULL` | calls logged this week, for the dashboard and team report (open calls already use `follow_ups_tenant_open`) |
+
+**Searching students under row-level security.** Postgres will not use a trigram index for `LIKE`/`ILIKE` in a query that
+must enforce a row policy, because the operators are not "leakproof". For the application role the trigram indexes above
+are therefore **never used by an ordinary query**; every search went to a scan of the students table (0.7 to 6 seconds at
+a million leads, 7 ms for the same query as the owner). Migration `student_search` adds
+`search_student_ids(term, digits, with_email, max_rows) → SETOF uuid`, a `SECURITY DEFINER` function that runs as the
+table owner, applies `tenant_id = app_tenant_id()` and `deleted_at IS NULL` itself (nothing is returned when no
+workspace is set), takes the search text as a bound value (matched literally, `%` and `_` included), pins its
+`search_path`, and is executable only by `avn_app`. It builds its query per call so the planner sees the real text.
+The lead list uses it when a search matches up to 2,000 students and falls back to the plain filter otherwise
+(`lead.service.ts`, `buildLeadFilter`). `tests/integration/lead-search.int.test.ts` covers its isolation.
+
 ---
 
 ## Prisma sketch (abridged)
@@ -349,6 +370,8 @@ CREATE POLICY tenant_isolation ON students
 -- repeated for every tenant-owned table; app sets app.tenant_id per transaction.
 ```
 
-The app-level tenant-scoped Prisma client is primary; RLS guarantees that even a
+As built, the policy is `tenant_id = app_tenant_id()` (a function over `current_setting('app.tenant_id', true)`), the
+application role has no `BYPASSRLS`, and tables are not `FORCE`d, so the owner role used for migrations, sign-in lookups
+and the one search function passes through them. The app-level tenant-scoped Prisma client is primary; RLS guarantees that even a
 mistaken query cannot cross tenants. Super-admin paths run with a role that bypasses RLS
 and are always audited with `impersonated_by`.

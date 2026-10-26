@@ -1,0 +1,524 @@
+{
+  "label": "1m-stress-3x",
+  "leads": 1000355,
+  "vus": 150,
+  "reportCacheSeconds": 60,
+  "durationSeconds": 90,
+  "at": "2026-10-17T10:56:53.567Z",
+  "baseline": [
+    {
+      "name": "leads: unassigned / closed views",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 36.476800000004005,
+      "p95": 2807.195900000006,
+      "p99": 3047.3304999999964,
+      "max": 3047.3304999999964,
+      "errors": 0
+    },
+    {
+      "name": "reports: funnel / sources / team / status",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 9.133299999986775,
+      "p95": 1350.4408000000112,
+      "p99": 2688.066200000001,
+      "max": 2688.066200000001,
+      "errors": 0
+    },
+    {
+      "name": "dashboard (page)",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 365.8083999999799,
+      "p95": 499.32070000001113,
+      "p99": 2738.439100000018,
+      "max": 2738.439100000018,
+      "errors": 0
+    },
+    {
+      "name": "leads: my leads / today / overdue",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 320.46680000000197,
+      "p95": 465.2711999999956,
+      "p99": 521.0700999999972,
+      "max": 521.0700999999972,
+      "errors": 0
+    },
+    {
+      "name": "leads: search by first name only",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 180.0708999999988,
+      "p95": 312.4513999999981,
+      "p99": 2467.198199999999,
+      "max": 2467.198199999999,
+      "errors": 0
+    },
+    {
+      "name": "leads: first page, newest",
+      "count": 83,
+      "rps": 0.5213819661445608,
+      "p50": 135.35339999999997,
+      "p95": 163.89719999999943,
+      "p99": 182.9033000000054,
+      "max": 182.9033000000054,
+      "errors": 0
+    },
+    {
+      "name": "leads: filter by stage and source",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 65.63549999999668,
+      "p95": 142.40709999999672,
+      "p99": 169.50759999999718,
+      "max": 169.50759999999718,
+      "errors": 0
+    },
+    {
+      "name": "web leads: inbox",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 86.39879999999539,
+      "p95": 114.21330000000307,
+      "p99": 119.70139999999083,
+      "max": 119.70139999999083,
+      "errors": 0
+    },
+    {
+      "name": "leads: search by full name",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 31.84020000000237,
+      "p95": 58.86229999999705,
+      "p99": 66.03659999999945,
+      "max": 66.03659999999945,
+      "errors": 0
+    },
+    {
+      "name": "student: add a new one",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 37.04639999999199,
+      "p95": 56.66670000000158,
+      "p99": 71.53750000000582,
+      "max": 71.53750000000582,
+      "errors": 0
+    },
+    {
+      "name": "leads: filter by state",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 41.85020000000077,
+      "p95": 55.27859999999782,
+      "p99": 61.306700000001,
+      "max": 61.306700000001,
+      "errors": 0
+    },
+    {
+      "name": "leads: next page",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 33.84720000000016,
+      "p95": 41.727100000000064,
+      "p99": 53.26350000000093,
+      "max": 53.26350000000093,
+      "errors": 0
+    },
+    {
+      "name": "intake: website enquiry",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 29.3521999999939,
+      "p95": 40.172200000000885,
+      "p99": 74.79270000001998,
+      "max": 74.79270000001998,
+      "errors": 0
+    },
+    {
+      "name": "lead: open one (detail)",
+      "count": 37,
+      "rps": 0.23242328611263555,
+      "p50": 7.317699999999604,
+      "p95": 32.12360000000626,
+      "p99": 61.33319999999367,
+      "max": 61.33319999999367,
+      "errors": 0
+    },
+    {
+      "name": "leads: search by phone digits",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 20.9845000000023,
+      "p95": 29.119199999997363,
+      "p99": 31.346199999999953,
+      "max": 31.346199999999953,
+      "errors": 0
+    },
+    {
+      "name": "lead: timeline",
+      "count": 37,
+      "rps": 0.23242328611263555,
+      "p50": 7.515400000003865,
+      "p95": 27.281000000002678,
+      "p99": 37.03149999999732,
+      "max": 37.03149999999732,
+      "errors": 0
+    },
+    {
+      "name": "audit log",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 17.460599999991246,
+      "p95": 23.585699999995995,
+      "p99": 24.766499999997905,
+      "max": 24.766499999997905,
+      "errors": 0
+    },
+    {
+      "name": "calls: my queue (today / overdue / upcoming)",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 16.631200000003446,
+      "p95": 22.90009999999893,
+      "p99": 24.451900000000023,
+      "max": 24.451900000000023,
+      "errors": 0
+    },
+    {
+      "name": "lead: add a note",
+      "count": 37,
+      "rps": 0.23242328611263555,
+      "p50": 5.987099999998463,
+      "p95": 20.530799999993178,
+      "p99": 24.764100000000326,
+      "max": 24.764100000000326,
+      "errors": 0
+    },
+    {
+      "name": "notifications badge",
+      "count": 60,
+      "rps": 0.37690262612859815,
+      "p50": 10.380199999985052,
+      "p95": 15.974599999986822,
+      "p99": 18.02950000000419,
+      "max": 18.02950000000419,
+      "errors": 0
+    },
+    {
+      "name": "lead: change stage",
+      "count": 30,
+      "rps": 0.18845131306429908,
+      "p50": 6.753599999996368,
+      "p95": 9.495599999994738,
+      "p99": 36.0060000000085,
+      "max": 36.0060000000085,
+      "errors": 0
+    }
+  ],
+  "mixed": [
+    {
+      "name": "reports: funnel / sources / team / status",
+      "count": 13,
+      "rps": 0.14214218391686206,
+      "p50": 29.309099999984028,
+      "p95": 8885.111000000004,
+      "p99": 8885.111000000004,
+      "max": 8885.111000000004,
+      "errors": 0
+    },
+    {
+      "name": "leads: unassigned / closed views",
+      "count": 4,
+      "rps": 0.04373605658980371,
+      "p50": 388.4291000000085,
+      "p95": 8864.840600000025,
+      "p99": 8864.840600000025,
+      "max": 8864.840600000025,
+      "errors": 0
+    },
+    {
+      "name": "dashboard (page)",
+      "count": 1506,
+      "rps": 16.466625306061097,
+      "p50": 884.1110999999801,
+      "p95": 2041.314699999988,
+      "p99": 2930.0449999999837,
+      "max": 4397.102199999994,
+      "errors": 0
+    },
+    {
+      "name": "leads: my leads / today / overdue",
+      "count": 992,
+      "rps": 10.84654203427132,
+      "p50": 719.0966999999946,
+      "p95": 1856.1860999999917,
+      "p99": 2331.2944000000134,
+      "max": 2964.0705000000016,
+      "errors": 0
+    },
+    {
+      "name": "leads: search by first name only",
+      "count": 80,
+      "rps": 0.8747211317960741,
+      "p50": 907.3675000000221,
+      "p95": 1624.4867999999842,
+      "p99": 1778.8576000000176,
+      "max": 1778.8576000000176,
+      "errors": 0
+    },
+    {
+      "name": "leads: first page, newest",
+      "count": 1840,
+      "rps": 20.118586031309707,
+      "p50": 633.6534000000102,
+      "p95": 1222.512699999992,
+      "p99": 1608.760500000004,
+      "max": 1980.9541000000027,
+      "errors": 0
+    },
+    {
+      "name": "leads: filter by stage and source",
+      "count": 222,
+      "rps": 2.427351140734106,
+      "p50": 462.793399999995,
+      "p95": 1025.8116000000155,
+      "p99": 1489.486899999989,
+      "max": 1614.204400000017,
+      "errors": 0
+    },
+    {
+      "name": "web leads: inbox",
+      "count": 10,
+      "rps": 0.10934014147450927,
+      "p50": 567.3228999999992,
+      "p95": 979.6216999999888,
+      "p99": 979.6216999999888,
+      "max": 979.6216999999888,
+      "errors": 0
+    },
+    {
+      "name": "leads: next page",
+      "count": 490,
+      "rps": 5.357666932250955,
+      "p50": 413.77640000000247,
+      "p95": 906.4039000000048,
+      "p99": 1307.971499999985,
+      "max": 1650.2442999999912,
+      "errors": 0
+    },
+    {
+      "name": "calls: log an outcome",
+      "count": 563,
+      "rps": 6.155849965014872,
+      "p50": 352.23459999999614,
+      "p95": 902.4713000000047,
+      "p99": 1227.66320000001,
+      "max": 1672.6381999999867,
+      "errors": 0
+    },
+    {
+      "name": "intake: website enquiry",
+      "count": 168,
+      "rps": 1.8369143767717557,
+      "p50": 383.6036000000022,
+      "p95": 834.7234000000171,
+      "p99": 1191.3545999999915,
+      "max": 1598.2967000000062,
+      "errors": 0
+    },
+    {
+      "name": "leads: search by phone digits",
+      "count": 322,
+      "rps": 3.5207525554791985,
+      "p50": 298.58520000000135,
+      "p95": 828.6622000000207,
+      "p99": 1026.1244999999763,
+      "max": 1551.3243000000075,
+      "errors": 0
+    },
+    {
+      "name": "leads: search by full name",
+      "count": 159,
+      "rps": 1.7385082494446975,
+      "p50": 325.59859999999753,
+      "p95": 822.7526000000071,
+      "p99": 1365.3470999999845,
+      "max": 1634.2005000000063,
+      "errors": 0
+    },
+    {
+      "name": "student: add a new one",
+      "count": 73,
+      "rps": 0.7981830327639177,
+      "p50": 350.95650000000023,
+      "p95": 812.7838000000047,
+      "p99": 1288.5483999999997,
+      "max": 1288.5483999999997,
+      "errors": 0
+    },
+    {
+      "name": "calls: my queue (today / overdue / upcoming)",
+      "count": 2311,
+      "rps": 25.268506694759093,
+      "p50": 276.4796999999962,
+      "p95": 794.4103999999934,
+      "p99": 1196.4256999999925,
+      "max": 1604.2386000000115,
+      "errors": 0
+    },
+    {
+      "name": "audit log",
+      "count": 2,
+      "rps": 0.021868028294901854,
+      "p50": 776.05349999998,
+      "p95": 776.05349999998,
+      "p99": 776.05349999998,
+      "max": 776.05349999998,
+      "errors": 0
+    },
+    {
+      "name": "notifications badge",
+      "count": 1239,
+      "rps": 13.547243528691698,
+      "p50": 255.3695000000007,
+      "p95": 710.2842999999993,
+      "p99": 994.4752000000153,
+      "max": 1449.3296000000264,
+      "errors": 0
+    },
+    {
+      "name": "leads: filter by state",
+      "count": 4,
+      "rps": 0.04373605658980371,
+      "p50": 332.1695999999938,
+      "p95": 668.2432000000263,
+      "p99": 668.2432000000263,
+      "max": 668.2432000000263,
+      "errors": 0
+    },
+    {
+      "name": "lead: open one (detail)",
+      "count": 237,
+      "rps": 2.59136135294587,
+      "p50": 33.623200000001816,
+      "p95": 616.8983000000007,
+      "p99": 865.1266999999934,
+      "max": 1204.5948999999964,
+      "errors": 0
+    },
+    {
+      "name": "lead: timeline",
+      "count": 81,
+      "rps": 0.8856551459435251,
+      "p50": 35.68390000000363,
+      "p95": 551.3702999999514,
+      "p99": 860.3280000000086,
+      "max": 860.3280000000086,
+      "errors": 0
+    },
+    {
+      "name": "lead: add a note",
+      "count": 421,
+      "rps": 4.60321995607684,
+      "p50": 29.592199999984587,
+      "p95": 426.4849000000104,
+      "p99": 746.8083000000042,
+      "max": 1293.4143999999797,
+      "errors": 0
+    },
+    {
+      "name": "lead: change stage",
+      "count": 1,
+      "rps": 0.010934014147450927,
+      "p50": 17.81140000000596,
+      "p95": 17.81140000000596,
+      "p99": 17.81140000000596,
+      "max": 17.81140000000596,
+      "errors": 0
+    }
+  ],
+  "mixedTotals": {
+    "requests": 10738,
+    "perSecond": 117.33478834007254,
+    "p50": 453.7988000000187,
+    "p95": 1381.3104999999923,
+    "p99": 2037.6798000000126,
+    "errors": 0
+  },
+  "topStatements": [
+    {
+      "calls": 1899,
+      "mean_ms": 240.31,
+      "total_s": 456.3,
+      "query": "SELECT \"public\".\"leads\".\"id\" FROM \"public\".\"leads\" LEFT JOIN \"public\".\"students\" AS \"j1\" ON (\"j1\".\"id\") = (\"public\".\"leads\".\"student_id\") WHERE (\"public\".\"leads"
+    },
+    {
+      "calls": 1546,
+      "mean_ms": 131.54,
+      "total_s": 203.4,
+      "query": "SELECT count(*) FILTER (WHERE l.stage NOT IN ($2,$3,$4,$5,$6,$7,$8))::bigint AS active, count(*) FILTER (WHERE l.is_potential AND l.stage NOT IN ($9,$10,$11,$12"
+    },
+    {
+      "calls": 1899,
+      "mean_ms": 73.82,
+      "total_s": 140.2,
+      "query": "SELECT \"public\".\"leads\".\"id\", \"public\".\"leads\".\"stage\"::text, \"public\".\"leads\".\"is_potential\", \"public\".\"leads\".\"priority\"::text, \"public\".\"leads\".\"interest_cou"
+    },
+    {
+      "calls": 237,
+      "mean_ms": 418.78,
+      "total_s": 99.3,
+      "query": "WITH reached AS ( SELECT l.id, GREATEST( COALESCE(MAX(array_position(ARRAY[$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12]::lead_stage[], h.to_stage)), $13), COALESCE(arra"
+    },
+    {
+      "calls": 220,
+      "mean_ms": 451.05,
+      "total_s": 99.2,
+      "query": "SELECT \"public\".\"leads\".\"id\", \"public\".\"leads\".\"stage\"::text, \"public\".\"leads\".\"is_potential\", \"public\".\"leads\".\"priority\"::text, \"public\".\"leads\".\"interest_cou"
+    },
+    {
+      "calls": 1546,
+      "mean_ms": 52.87,
+      "total_s": 81.7,
+      "query": "SELECT \"public\".\"activities\".\"id\", \"public\".\"activities\".\"type\"::text, \"public\".\"activities\".\"summary\", \"public\".\"activities\".\"actor_id\", \"public\".\"activities\"."
+    },
+    {
+      "calls": 219,
+      "mean_ms": 357.16,
+      "total_s": 78.2,
+      "query": "SELECT \"public\".\"leads\".\"id\", \"public\".\"leads\".\"stage\"::text, \"public\".\"leads\".\"is_potential\", \"public\".\"leads\".\"priority\"::text, \"public\".\"leads\".\"interest_cou"
+    },
+    {
+      "calls": 219,
+      "mean_ms": 348.13,
+      "total_s": 76.2,
+      "query": "SELECT \"public\".\"leads\".\"id\" FROM \"public\".\"leads\" LEFT JOIN \"public\".\"students\" AS \"j2\" ON (\"j2\".\"id\") = (\"public\".\"leads\".\"student_id\") WHERE (\"public\".\"leads"
+    },
+    {
+      "calls": 1546,
+      "mean_ms": 48.91,
+      "total_s": 75.6,
+      "query": "SELECT count(*) FILTER (WHERE f.completed_at IS NULL AND f.scheduled_at >= $1 AND f.scheduled_at < $2)::bigint AS calls_today, count(*) FILTER (WHERE f.complete"
+    },
+    {
+      "calls": 216,
+      "mean_ms": 337.28,
+      "total_s": 72.9,
+      "query": "SELECT \"public\".\"leads\".\"id\", \"public\".\"leads\".\"stage\"::text, \"public\".\"leads\".\"is_potential\", \"public\".\"leads\".\"priority\"::text, \"public\".\"leads\".\"interest_cou"
+    },
+    {
+      "calls": 210,
+      "mean_ms": 331.51,
+      "total_s": 69.6,
+      "query": "SELECT \"public\".\"leads\".\"id\", \"public\".\"leads\".\"stage\"::text, \"public\".\"leads\".\"is_potential\", \"public\".\"leads\".\"priority\"::text, \"public\".\"leads\".\"interest_cou"
+    },
+    {
+      "calls": 22,
+      "mean_ms": 2848.25,
+      "total_s": 62.7,
+      "query": "SELECT \"public\".\"leads\".\"id\", \"public\".\"leads\".\"stage\"::text, \"public\".\"leads\".\"is_potential\", \"public\".\"leads\".\"priority\"::text, \"public\".\"leads\".\"interest_cou"
+    }
+  ]
+}

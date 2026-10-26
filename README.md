@@ -12,7 +12,7 @@ reassignment, source tagging, the web-leads inbox) and fixes the gaps found in r
 (no activity timeline, no telephony, no WhatsApp, thin reporting, leaking data quality,
 no bulk actions, no real multi-tenant/RBAC hardening).
 
-> **Status:** Phases 1–9 (foundation, students and leads, follow-ups, dashboards and reports, web leads with LeadXP-compatible intake, import and export, documents vault, automation rules, security hardening) are built and verified locally; the documents vault was tested on MinIO and ClamAV, not yet on a real Cloudflare R2 bucket, and the security review was internal (an independent test is still to do). Phase 10 (production readiness) is partly done. Code lives in [`avn_cms/`](avn_cms/). Live status and test results: [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md).
+> **Status:** Phases 1–10 are built and verified locally: foundation, students and leads, follow-ups, dashboards and reports, web leads with LeadXP-compatible intake, import and export, documents vault, automation rules, security hardening, and production readiness (load test at 1,000,000 leads, observability, backup and restore drill, plan limits and usage metering, runbook). The documents vault was tested on MinIO and ClamAV, not yet on a real Cloudflare R2 bucket; the security review was internal (an independent test is still to do); and nothing has run on a real host yet — no hosting target has been chosen. Code lives in [`avn_cms/`](avn_cms/). Live status and test results: [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md).
 
 ---
 
@@ -73,7 +73,15 @@ leadxp-rebuild/
 │   ├── PROJECT_AUDIT.md          ← discovery: what existed, conflicts, decisions
 │   ├── REQUIREMENTS.md           ← requirements traced to docs and phases
 │   ├── BUILD_STATUS.md           ← live build status + actual test results
-│   └── DEPLOYMENT.md             ← environments, release, health, backups, rollback
+│   ├── DEPLOYMENT.md             ← environments, release, health, backups, rollback
+│   ├── RUNBOOK.md                ← on-call: signals, alerts, incident playbooks, restore drill
+│   ├── SCALABILITY.md            ← load test at 1,000,000 leads, findings, capacity, plans and usage
+│   ├── TEST_PLAN.md              ← every suite, what it proves, how to run it
+│   ├── SECURITY.md               ← controls, penetration-test checklist, findings
+│   ├── PRODUCT_OVERVIEW.md · FEATURES.md · USER_ROLES.md · STUDENT_LIFECYCLE.md · FOLLOWUP_ENGINE.md
+│   ├── REPORTING.md · AUDIT_LOGGING.md · API_SPEC.md          ← what the product does, in detail
+│   ├── IMPORT_EXPORT.md · DOCUMENTS.md · AUTOMATION.md        ← the larger modules
+│   └── UX_IMPROVEMENTS.md · IMPROVEMENT_ROADMAP.md · AI_ROADMAP.md   ← what next
 └── avn_cms/                      ← the application (pnpm workspace)
     ├── apps/web                  Next.js 16: UI + API route handlers
     ├── apps/worker               BullMQ worker: overdue sweep + escalation
@@ -82,11 +90,11 @@ leadxp-rebuild/
     ├── packages/auth             sessions, Argon2id, lockout, reset, TOTP MFA
     ├── packages/core             domain services, RBAC policy, Zod schemas
     ├── tests/                    integration (real Postgres), e2e (Playwright + axe), fixtures
-    └── scripts/                  intake smoke test, super-admin bootstrap
+    └── scripts/                  intake smoke test, super-admin bootstrap, load test, restore drill
 ```
 
-Later phases add the remaining spec docs (`FEATURES.md`,
-`SECURITY.md`, `TEST_PLAN.md`, …) as their modules are built.
+All twenty documents the specification asked for now exist (the coverage map is in
+[`docs/DEVELOPMENT_PHASES.md`](docs/DEVELOPMENT_PHASES.md)).
 
 ---
 
@@ -119,7 +127,16 @@ pnpm test:e2e                   # production build + Playwright + axe accessibil
 pnpm smoke:webleads --url http://localhost:3300 --tenant demo
 ```
 
-Deployment, backups and rollback: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Production readiness (Phase 10), against a separate tuned Postgres on port 55460 (never your dev database):
+
+```bash
+pnpm load:up && pnpm load:migrate        # the load-test database
+pnpm load:seed --to 100000               # then, to grow it: pnpm load:seed --from 100000 --to 1000000 (a few minutes, in SQL)
+pnpm build && pnpm load:run --label 1m   # 150 staff for 90 s + website intake; writes load-results/1m.json
+pnpm restore:drill                       # dump, restore into a new database, verify, drop it
+```
+
+Deployment, backups and rollback: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). On call: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ---
 

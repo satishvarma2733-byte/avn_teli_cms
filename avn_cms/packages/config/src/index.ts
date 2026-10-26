@@ -30,6 +30,16 @@ const envSchema = z
     // How many proxies in front of the app set X-Forwarded-For (a load balancer or CDN = 1). 0 ignores
     // the header, so a caller cannot choose the address that rate limits and the audit log see.
     TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    // How long a dashboard or report answer is reused before it is recomputed (docs/SCALABILITY.md).
+    // Older answers are still served for ten times as long while a fresh one is computed. 0 turns it off.
+    REPORT_CACHE_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+    // Which requests the access log (one JSON line each) records: "all", only the "errors" and slow ones
+    // (default), or "off". Query strings are never logged: they carry search text and phone numbers.
+    ACCESS_LOG: z.enum(['all', 'errors', 'off']).default('errors'),
+    // A request slower than this many milliseconds is always logged, with "slow": true.
+    SLOW_REQUEST_MS: z.coerce.number().int().min(50).max(60_000).default(1000),
+    // Bearer token for GET /api/metrics (Prometheus text). Unset: the endpoint does not exist (404).
+    METRICS_TOKEN: z.string().min(24, 'must be at least 24 characters').optional(),
     // Roles that must turn on two-step verification before they can use the app (comma separated,
     // for example "SUPER_ADMIN,TENANT_ADMIN"). Empty: it stays optional for everyone.
     MFA_REQUIRED_ROLES: z

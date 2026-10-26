@@ -25,6 +25,7 @@ import {
 import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, forbidden, invalid, notFound } from '../shared/errors';
+import { assertRoom } from '../usage/usage.service';
 import { adminOnly, manageScope, type Scope } from './access';
 import { getObjectStore } from './object-store';
 import { formatFor, resolveFormat, safeFilename } from './rules';
@@ -362,6 +363,7 @@ export async function initUpload(ctx: Ctx, dto: DocumentInitDTO) {
       folderId = dto.folderId ?? null;
     }
 
+    await assertRoom(db, 'storage', dto.sizeBytes);
     let version = 1;
     if (seriesId !== id) {
       const last = await db.document.findFirst({

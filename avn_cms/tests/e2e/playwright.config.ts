@@ -25,6 +25,8 @@ const serverEnv: Record<string, string> = {
   SMTP_PORT: '',
   // Per-process rate limits (no shared Redis state between runs).
   REDIS_URL: '',
+  // Dashboards and reports are computed fresh, so a flow sees what it just did.
+  REPORT_CACHE_SECONDS: '0',
   // Like a developer machine: no proxy in front, and two-step verification optional.
   TRUSTED_PROXY_HOPS: '0',
   MFA_REQUIRED_ROLES: '',

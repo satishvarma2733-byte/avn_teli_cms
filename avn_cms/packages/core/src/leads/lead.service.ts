@@ -22,12 +22,13 @@ import {
 import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, forbidden, invalid, notFound } from '../shared/errors';
+import { assertRoom } from '../usage/usage.service';
 import { decodeKeyset, encodeKeyset, keysetWhere } from '../shared/pagination';
 import { toE164 } from '../shared/phone';
 import { dayBounds } from '../shared/time';
 import { loadSettings } from '../tenants/settings';
 import {
-  countLeads,
+  countLeadsUpTo,
   countStudentsByEmail,
   findLeadForAccess,
   findLeads,
@@ -128,6 +129,48 @@ const SORTS = {
  * The workspace filter (scope + view + filters + search), shared by the list and by exports
  * so an export always contains exactly what the user could see in the table.
  */
+/**
+ * "State is Telangana", ignoring case. A bare case-insensitive match (`ILIKE`) tells Postgres nothing about
+ * how many rows to expect, so for a state that a third of the students share it plans for a handful and
+ * scans the students table: 1.4 seconds at a million leads. Adding the same text as exact matches in its
+ * usual spellings lets it use the column's statistics (and the index) while the `ILIKE` keeps every other
+ * spelling matching, so the answer is the same as before.
+ */
+function sameText(field: 'state' | 'district', value: string): Prisma.StudentWhereInput {
+  const spellings = [
+    ...new Set([
+      value,
+      value.toLowerCase(),
+      value.toUpperCase(),
+      value.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase()),
+    ]),
+  ];
+  return { OR: [{ [field]: { in: spellings } }, { [field]: { equals: value, mode: 'insensitive' } }] };
+}
+
+/** A search that matches more students than this is not turned into a list of ids (see searchStudentIds). */
+const MAX_SEARCH_IDS = 2000;
+
+/**
+ * The students a search matches, found by the database function `search_student_ids`. Row-level security
+ * keeps Postgres from using the name, parent and phone trigram indexes for the application role, so the
+ * matching is done inside a function that runs as the table owner and applies the workspace condition
+ * itself (migration `student_search`; docs/SCALABILITY.md §4). A rare search (a phone number, a full name)
+ * then costs about 8 ms at a million leads instead of 3 seconds.
+ *
+ * Null when more than MAX_SEARCH_IDS match: the caller filters in the ordinary way instead.
+ */
+async function searchStudentIds(
+  db: TenantDb,
+  term: string,
+  digits: string,
+  withEmail: boolean,
+): Promise<string[] | null> {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    SELECT search_student_ids(${term}, ${digits}, ${withEmail}, ${MAX_SEARCH_IDS + 1}) AS id`;
+  return rows.length > MAX_SEARCH_IDS ? null : rows.map((r) => r.id);
+}
+
 export async function buildLeadFilter(
   db: TenantDb,
   ctx: Ctx,
@@ -136,7 +179,12 @@ export async function buildLeadFilter(
   const scope = listScope(ctx, 'student:list');
   if (!scope) throw forbidden();
   {
-    const and: Prisma.LeadWhereInput[] = [{ deletedAt: null, student: { deletedAt: null } }];
+    // Everything asked about the student goes into ONE student filter. Written as separate filters (one per
+    // search field, one for the state…) the database joins the students table once for each, and an OR across
+    // those joins cannot use the name, parent and phone trigram indexes: a search for a first name took 6
+    // seconds at a million leads. In one filter it is a single join the indexes can serve (docs/SCALABILITY.md).
+    const student: Prisma.StudentWhereInput[] = [{ deletedAt: null }];
+    const and: Prisma.LeadWhereInput[] = [{ deletedAt: null }];
     if (scope === 'own') and.push(ownFilter(ctx));
 
     const settings = await loadSettings(db);
@@ -178,22 +226,41 @@ export async function buildLeadFilter(
       and.push({
         assignments: { some: { assigneeId: q.telecallerId, roleFunction: 'TELECALLER', isActive: true } },
       });
-    if (q.state) and.push({ student: { state: { equals: q.state, mode: 'insensitive' } } });
-    if (q.district) and.push({ student: { district: { equals: q.district, mode: 'insensitive' } } });
+    if (q.state) student.push(sameText('state', q.state));
+    if (q.district) student.push(sameText('district', q.district));
     if (q.q) {
       const digits = q.q.replace(/\D/g, '');
-      const or: Prisma.LeadWhereInput[] = [
-        { student: { name: { contains: q.q, mode: 'insensitive' } } },
-        { student: { parentName: { contains: q.q, mode: 'insensitive' } } },
-      ];
-      if (digits.length >= 4) or.push({ student: { phoneE164: { contains: digits } } });
-      if (q.q.includes('@') && !seesReducedStudentFields(ctx.role))
-        or.push({ student: { email: { contains: q.q, mode: 'insensitive' } } });
-      and.push({ OR: or });
+      const withEmail = q.q.includes('@') && !seesReducedStudentFields(ctx.role);
+      const ids = await searchStudentIds(db, q.q, digits, withEmail);
+      if (ids) {
+        student.push({ id: { in: ids } });
+      } else {
+        // So many students match that listing their ids is no use: let the database walk the leads in
+        // order and stop at the first page, which is quick precisely because matches are everywhere.
+        // Left to itself the planner judges a longer name rare (the fewer letters, the more it expects to
+        // match), takes every student with that name and sorts their leads: 1 to 5 seconds at a million leads
+        // for a name 8 % of students share. For this transaction only, whole-table scans and sorts are ruled
+        // out, which leaves the walk in index order (25 ms for the page, 190 ms to count to 1,000).
+        // Not for someone looking at their own leads (a few thousand): there the planner's choice, which
+        // starts from their assignments, is the quick one, and the walk would be slower.
+        if (scope !== 'own' && q.view !== 'mine')
+          await db.$executeRaw`SELECT set_config('enable_seqscan', 'off', true), set_config('enable_sort', 'off', true)`;
+        const or: Prisma.StudentWhereInput[] = [
+          { name: { contains: q.q, mode: 'insensitive' } },
+          { parentName: { contains: q.q, mode: 'insensitive' } },
+        ];
+        if (digits.length >= 4) or.push({ phoneE164: { contains: digits } });
+        if (withEmail) or.push({ email: { contains: q.q, mode: 'insensitive' } });
+        student.push({ OR: or });
+      }
     }
+    and.push({ student: { AND: student } });
     return { AND: and };
   }
 }
+
+/** The list shows an exact total up to this many; beyond it, "1,000+". */
+export const LIST_TOTAL_CAP = 1_000;
 
 export async function listLeads(ctx: Ctx, q: LeadListQuery) {
   if (!listScope(ctx, 'student:list')) throw forbidden();
@@ -211,12 +278,19 @@ export async function listLeads(ctx: Ctx, q: LeadListQuery) {
     const hasMore = rows.length > q.limit;
     const items = hasMore ? rows.slice(0, q.limit) : rows;
     const last = items[items.length - 1];
-    const total = cursor ? undefined : await countLeads(db, filter);
+    // First page only. When everything fits on it the total is simply the rows, with no second query.
+    const counted = cursor
+      ? undefined
+      : hasMore
+        ? await countLeadsUpTo(db, filter, LIST_TOTAL_CAP)
+        : items.length;
     const reduced = seesReducedStudentFields(ctx.role);
     return {
       items: items.map((r) => serializeRow(r, reduced)),
       nextCursor: hasMore && last ? encodeKeyset(q.sort, last[sort.field], last.id) : null,
-      total,
+      /** How many match, up to LIST_TOTAL_CAP (`totalExact` says whether it is the real number). */
+      total: counted === undefined ? undefined : Math.min(counted, LIST_TOTAL_CAP),
+      totalExact: counted === undefined ? undefined : counted <= LIST_TOTAL_CAP,
     };
   });
 }
@@ -250,6 +324,7 @@ export async function createStudent(ctx: Ctx, dto: StudentCreateDTO) {
         name: can(ctx, 'student:read') ? existing.name : undefined,
       });
     }
+    await assertRoom(db, 'leads');
     const source = await findSource(db, dto.sourceId);
     if (!source) throw invalid('Choose a lead source.', { fields: { sourceId: 'Choose a lead source.' } });
 

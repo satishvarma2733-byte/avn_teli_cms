@@ -32,7 +32,13 @@
     "smoke:webleads": "tsx scripts/smoke-webleads.ts",
     "test:e2e:only": "playwright test --config tests/e2e/playwright.config.ts",
     "admin:create-superadmin": "tsx scripts/create-superadmin.ts",
-    "storage:setup": "tsx scripts/storage-setup.ts"
+    "storage:setup": "tsx scripts/storage-setup.ts",
+    "load:up": "docker compose -f docker-compose.load.yml up -d --wait",
+    "load:down": "docker compose -f docker-compose.load.yml down -v",
+    "load:migrate": "node scripts/loadtest/with-load-env.mjs pnpm --filter @avn-cms/db migrate:deploy",
+    "load:seed": "tsx scripts/loadtest/seed.ts",
+    "load:run": "tsx scripts/loadtest/run.ts",
+    "restore:drill": "tsx scripts/restore-drill.ts"
   },
   "devDependencies": {
     "@avn-cms/auth": "workspace:*",

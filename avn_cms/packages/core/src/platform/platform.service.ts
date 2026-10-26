@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { starterRuleRows } from '../automation/starter';
 import { sendMail } from '../communications/email';
 import { conflict, forbidden, notFound } from '../shared/errors';
+import { parsePlanLimits } from '../usage/usage.service';
 
 /**
  * Super-admin platform module (RBAC: Super Admin, platform scope). Uses the owner client by
@@ -47,6 +48,9 @@ export const tenantCreateSchema = z.object({
 });
 
 export const tenantStatusSchema = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED', 'TRIAL']) });
+export const tenantPlanSchema = z.object({
+  planCode: z.enum(['STARTER', 'PROFESSIONAL', 'ULTRA', 'ENTERPRISE']),
+});
 
 function requireSuperAdmin(p: Principal) {
   if (p.role !== 'SUPER_ADMIN') throw forbidden();
@@ -57,7 +61,7 @@ export async function listTenants(p: Principal) {
   const db = ownerDb();
   const tenants = await db.tenant.findMany({
     orderBy: { createdAt: 'desc' },
-    include: { plan: { select: { name: true, code: true } } },
+    include: { plan: { select: { name: true, code: true, limits: true } } },
   });
   const users = await db.user.groupBy({
     by: ['tenantId'],
@@ -76,7 +80,9 @@ export async function listTenants(p: Principal) {
     name: t.name,
     slug: t.slug,
     status: t.status,
-    plan: t.plan,
+    plan: t.plan ? { name: t.plan.name, code: t.plan.code } : null,
+    /** What the plan allows (null: no limit). */
+    limits: parsePlanLimits(t.plan?.limits),
     createdAt: t.createdAt,
     users: u.get(t.id) ?? 0,
     leads: l.get(t.id) ?? 0,
@@ -178,6 +184,64 @@ export async function setTenantStatus(
     ...meta,
   });
   return { id: tenantId, status };
+}
+
+/**
+ * Moves an agency to another plan. Refused when the agency already has more users, leads or stored
+ * documents than the new plan allows: a downgrade must never leave a workspace over its limit.
+ */
+export async function setTenantPlan(
+  p: Principal,
+  tenantId: string,
+  planCode: z.output<typeof tenantPlanSchema>['planCode'],
+  meta: { ip?: string; userAgent?: string } = {},
+) {
+  requireSuperAdmin(p);
+  const db = ownerDb();
+  const t = await db.tenant.findUnique({
+    where: { id: tenantId },
+    include: { plan: { select: { code: true } } },
+  });
+  if (!t) throw notFound('Tenant');
+  const plan = await db.plan.findUnique({ where: { code: planCode } });
+  if (!plan) throw notFound('Plan');
+  const limits = parsePlanLimits(plan.limits);
+  const [users, leads, files] = await Promise.all([
+    db.user.count({ where: { tenantId, deletedAt: null, status: 'ACTIVE' } }),
+    db.lead.count({ where: { tenantId, deletedAt: null } }),
+    db.document.aggregate({
+      where: { tenantId, deletedAt: null, purgedAt: null },
+      _sum: { sizeBytes: true },
+    }),
+  ]);
+  const stored = Number(files._sum.sizeBytes ?? 0);
+  const over: string[] = [];
+  if (limits.users !== null && users > limits.users)
+    over.push(`${users} active users (the plan allows ${limits.users})`);
+  if (limits.leads !== null && leads > limits.leads)
+    over.push(
+      `${leads.toLocaleString('en-IN')} leads (the plan allows ${limits.leads.toLocaleString('en-IN')})`,
+    );
+  if (limits.storageBytes !== null && stored > limits.storageBytes)
+    over.push(
+      `${Math.ceil(stored / 1024 ** 2)} MB of documents (the plan allows ${Math.round(limits.storageBytes / 1024 ** 2)} MB)`,
+    );
+  if (over.length > 0)
+    throw conflict(`${t.name} can't move to ${plan.name}: it has ${over.join(', and ')}.`, { over });
+  await db.$transaction([
+    db.tenant.update({ where: { id: tenantId }, data: { planId: plan.id } }),
+    db.subscription.updateMany({ where: { tenantId, status: 'ACTIVE' }, data: { planId: plan.id } }),
+  ]);
+  await auditAuth({
+    tenantId: null,
+    userId: p.userId,
+    action: 'platform.tenant_plan',
+    entityType: 'tenant',
+    entityId: tenantId,
+    newValue: { from: t.plan?.code ?? null, to: planCode },
+    ...meta,
+  });
+  return { id: tenantId, plan: { code: plan.code, name: plan.name } };
 }
 
 /**

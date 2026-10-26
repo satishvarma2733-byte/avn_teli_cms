@@ -5,6 +5,7 @@ import {
   maintainDocuments,
   purgeAuthRecords,
   sweepAutomation,
+  usage,
 } from '@avn-cms/core';
 import { withTenant } from '@avn-cms/db';
 import { ownerDb } from '@avn-cms/db/owner';
@@ -141,4 +142,29 @@ export async function automationSweepAllTenants(now = new Date()) {
 /** Removes ended sessions and used reset links that are old enough to forget (not per workspace). */
 export async function authCleanup(now = new Date()) {
   return purgeAuthRecords(now);
+}
+
+/** Records this month's usage for every workspace (`usage_counters`), for billing to read. */
+export async function usageSnapshot(now = new Date()) {
+  const tenants = await ownerDb().tenant.findMany({
+    where: { status: { not: 'SUSPENDED' } },
+    select: { id: true, slug: true },
+  });
+  let done = 0;
+  for (const t of tenants) {
+    try {
+      await usage.snapshotTenantUsage(t.id, now);
+      done++;
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'usage snapshot failed',
+          tenant: t.slug,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }
+  return { tenants: done };
 }

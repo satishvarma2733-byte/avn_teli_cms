@@ -1,4 +1,4 @@
-import { tenantSettings } from '@avn-cms/core';
+import { tenantSettings, usage } from '@avn-cms/core';
 import { can } from '@avn-cms/core/policy';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -8,13 +8,14 @@ import { PageHeader } from '@/components/ui/primitives';
 import { requireTenantPage } from '@/lib/session';
 
 import { SettingsForm } from './settings-form';
+import { UsageCard } from './usage-card';
 
 export const metadata: Metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
   const { ctx } = await requireTenantPage();
   if (!can(ctx, 'settings:manage')) redirect('/app/dashboard');
-  const settings = await tenantSettings.getSettings(ctx);
+  const [settings, planUsage] = await Promise.all([tenantSettings.getSettings(ctx), usage.getUsage(ctx)]);
   return (
     <>
       <PageHeader
@@ -29,6 +30,7 @@ export default async function SettingsPage() {
           </Link>
         }
       />
+      <UsageCard data={planUsage} />
       <SettingsForm initial={JSON.parse(JSON.stringify(settings))} />
     </>
   );

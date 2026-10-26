@@ -52,8 +52,9 @@ stolen session cookie or a leaked password.
 
 ### 2.2 The request gate (`apps/web/src/lib/api.ts`)
 
-Every API route is built with `route()`; a test fails if one is not (the seven public routes are listed by name with
-the reason). In order, a request passes:
+Every API route is built with `route()`; a test fails if one is not (the eight routes open without a session are listed
+by name with the reason: health, the metrics scrape — token only, 404 until `METRICS_TOKEN` is set — the three intake
+endpoints, sign-in, forgot and reset password). In order, a request passes:
 
 1. **Session** (or not, for the public routes). No session: 401, counted per address (120 a minute), so guessing
    tokens or flooding costs nothing but a lookup.
@@ -70,7 +71,10 @@ the reason). In order, a request passes:
 6. **Handler:** the body is validated with Zod (64 KB cap, unknown fields dropped, so nothing is mass-assigned), then the
    service checks the policy again with the record (404 for records you may not see).
 7. **Answer:** `{ data }` or `{ error: { code, message } }`. Internal errors give a reference id and nothing else; no stack,
-   query or path is ever sent (tested on every route).
+   query or path is ever sent (tested on every route). Every answer also carries `X-Request-Id`, the id in the logs.
+
+Rate-limit counters are kept apart for reads and writes of one path, so a person browsing a list cannot use up the limit
+that protects the write on the same path (found by the load test).
 
 **Client address.** Rate limits, the audit log and the session list use the caller's address. `X-Forwarded-For` is a
 list the *caller* can start, so only the entry added by our own proxy counts: `TRUSTED_PROXY_HOPS` (default 0 = ignore
@@ -87,6 +91,15 @@ inventing addresses (tested).
   importing it).
 - Records belong to a workspace and, for counselors and telecallers, to a person (`own`): the answer for anything else
   is 404, not 403, so ids reveal nothing.
+- **One deliberate exception to "everything goes through row-level security":** `search_student_ids` (Phase 10). Under
+  row-level security Postgres cannot use a trigram index for `LIKE`, so student search runs in a `SECURITY DEFINER`
+  function owned by the table owner. It is safe because it repeats the policy itself — `tenant_id = app_tenant_id()` and
+  `deleted_at IS NULL`, nothing returned when no workspace is set — takes the search text only as a bound value (the one
+  piece of SQL it builds is a fixed choice between conditions), has a fixed `search_path`, returns ids only, and is
+  executable by `avn_app` alone. It trusts the same thing the policies trust: the workspace the tenant-scoped client set for
+  the transaction. `tests/integration/lead-search.int.test.ts` checks that it returns only the workspace asked for, nothing
+  when none is set, that nobody else can run it, and that a search made of SQL is plain text. Any further `SECURITY
+  DEFINER` function needs the same treatment and an entry here.
 
 ### 2.4 Input and output
 
@@ -116,6 +129,11 @@ inventing addresses (tested).
   limited per address and per credential.
 - **Secrets:** read once by `packages/config`, never logged, never in `NEXT_PUBLIC_*`; the repository and its history
   were scanned (no secret, and `.env` was never committed).
+- **Logs and metrics (Phase 10):** the access log records method, path (never the query string, which carries search
+  text and phone numbers), status, time and the ids of the person and workspace; never headers, cookies or bodies.
+  Render errors are logged without request headers. `/api/metrics` exists only when `METRICS_TOKEN` is set, wants it as a
+  bearer token (compared in constant time, rate limited per address) and holds counts and timings only — no names, ids or
+  personal data. Treat the token like any secret and scrape from inside the private network where possible.
 
 ### 2.6 Dependencies and pipeline
 
@@ -183,6 +201,8 @@ found by this review and is fixed and covered by a test.
 | `APP_URL` | Must be the public `https://` origin: turns on `Secure` cookies, HSTS and `upgrade-insecure-requests` |
 | `SESSION_TTL_HOURS` | Lower it (24–72) if staff share machines |
 | `SESSION_SECRET`, `ENCRYPTION_KEY` | 32+ random bytes each, stored in the host's secret store; back up the key separately; changing it invalidates every authenticator and recovery code |
+| `METRICS_TOKEN` | Leave unset unless something scrapes `/api/metrics`; then 24+ random characters in the host's secret store, and scrape from the private network |
+| `ACCESS_LOG` | `errors` (default) logs failures and slow requests; `all` is for investigations (it is one line per request) |
 
 ## 6. Responding to an incident
 

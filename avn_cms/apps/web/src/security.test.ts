@@ -30,6 +30,8 @@ const METHOD = /export (?:const|function|async function) (GET|POST|PUT|PATCH|DEL
 /** Open to the public on purpose, and why. */
 const PUBLIC_ROUTES: Record<string, string> = {
   'health/route.ts': 'load balancer probe; says only up or down',
+  'metrics/route.ts':
+    'monitoring scrape: 404 unless METRICS_TOKEN is set, then a bearer token; counts and timings only',
   'webleads/route.ts': 'website intake with its own Basic-auth credential (LeadXP-compatible)',
   'public/web-leads/route.ts': 'website intake with its own Basic-auth credential',
   'public/webhooks/leads/route.ts': 'website intake with its own Basic-auth credential',
@@ -68,6 +70,11 @@ describe('API routes', () => {
     for (const key of ['webleads/route.ts', 'public/web-leads/route.ts', 'public/webhooks/leads/route.ts']) {
       expect(read(join(API, key)), key).toContain('handleIntake(');
     }
+    // The scrape endpoint is off without a token, wants it as a bearer token, and compares it in constant time.
+    const metrics = read(join(API, 'metrics/route.ts'));
+    expect(metrics).toContain('METRICS_TOKEN');
+    expect(metrics).toContain('safeEqual(');
+    expect(metrics).toContain('status: 404');
   });
 
   it('public routes that browsers call from our pages refuse other sites', () => {

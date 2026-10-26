@@ -24,6 +24,8 @@ import {
 /** Routes that are open to people who are not signed in, on purpose. Anything else needs a session. */
 const PUBLIC = [
   'health',
+  // Monitoring scrape: no session, a bearer token instead (404 while METRICS_TOKEN is unset).
+  'metrics',
   'webleads',
   'public/web-leads',
   'public/webhooks/leads',

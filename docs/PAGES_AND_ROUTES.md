@@ -239,14 +239,27 @@ GET    /api/notifications          my notifications (?unreadOnly&cursor&limit)  
 POST   /api/notifications/read     { ids } or { all: true }
 GET    /api/audit                  ?entityType&entityId&actor&dateFrom&dateTo&cursor
 GET    /api/settings               PATCH /api/settings
+GET    /api/usage                  the workspace's plan, limits and use (admins; Settings → Plan and usage)
 ```
 
 ### Platform (super admin)
 ```
 GET    /api/platform/tenants       POST /api/platform/tenants  PATCH /api/platform/tenants/:id
+PATCH  /api/platform/tenants/:id/plan   { planCode }  (refused when the agency is over the new plan's limits)
 POST   /api/platform/tenants/:id/impersonate   (audited; returns scoped session)
-GET    /api/platform/plans         GET /api/platform/metrics
+DELETE /api/platform/impersonation              stop acting as the agency
 ```
+
+### Operations (no session)
+```
+GET    /api/health                 up/down per dependency (database, redis, storage, scanner, worker)
+GET    /api/metrics                Prometheus text; 404 unless METRICS_TOKEN is set, then Bearer token
+```
+
+> **As built.** The complete, tested route list with methods, access rules and limits is `API_SPEC.md`; the lists above
+> are the original design. The platform area built is a single page, `/platform`: platform numbers and the agency list
+> (plan, use against limits, create, pause, change plan, open as admin). The separate plan catalog, billing and
+> platform audit pages in the tree above are not built (`IMPROVEMENT_ROADMAP.md`).
 
 ---
 

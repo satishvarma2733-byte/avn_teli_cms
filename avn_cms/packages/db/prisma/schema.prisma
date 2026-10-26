@@ -422,6 +422,7 @@ model Student {
   @@index([tenantId, createdAt(sort: Desc), id])
   // Fuzzy search (pg_trgm). Declared here so Prisma never generates a DROP for them.
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "students_name_trgm")
+  @@index([parentName(ops: raw("gin_trgm_ops"))], type: Gin, map: "students_parent_name_trgm")
   @@index([phoneE164(ops: raw("gin_trgm_ops"))], type: Gin, map: "students_phone_trgm")
   @@map("students")
 }

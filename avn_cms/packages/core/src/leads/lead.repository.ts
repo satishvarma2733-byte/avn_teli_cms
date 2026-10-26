@@ -38,6 +38,27 @@ export function countLeads(db: TenantDb, where: Prisma.LeadWhereInput) {
   return db.lead.count({ where });
 }
 
+/**
+ * How many leads match, but counting stops at `cap + 1`. Counting every match of a broad filter in a
+ * workspace of a million leads costs far more than the page itself, and nobody reads "812,334" for
+ * their next click; "1,000+" is the same answer. Narrow filters still get their exact number.
+ *
+ * Done by reading the ids and counting them, newest first (the order the list itself uses), not with
+ * `count({ take })`: that one always adds `ORDER BY id`, which sends the database round the primary key
+ * checking every row against the filter, 1 second for "state = Telangana" at a million leads. Newest first
+ * it takes the same index walk as the list's first page and stops at the first `cap + 1` matches.
+ * (Prisma adds `ORDER BY id` to any `take` without an `orderBy`, so the order has to be spelled out.)
+ */
+export async function countLeadsUpTo(db: TenantDb, where: Prisma.LeadWhereInput, cap: number) {
+  const rows = await db.lead.findMany({
+    where,
+    select: { id: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: cap + 1,
+  });
+  return rows.length;
+}
+
 /** Lead + student + active assignee ids: what every ownership check needs. */
 export function findLeadForAccess(db: TenantDb, leadId: string) {
   return db.lead.findFirst({

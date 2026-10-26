@@ -6,3 +6,4 @@ process.env['DATABASE_OWNER_URL'] ??= 'postgresql://unit:unit@127.0.0.1:1/unit_t
 process.env['SESSION_SECRET'] ??= Buffer.alloc(32, 1).toString('base64');
 process.env['ENCRYPTION_KEY'] ??= Buffer.alloc(32, 2).toString('base64');
 delete process.env['REDIS_URL'];
+process.env['REPORT_CACHE_SECONDS'] = '0';

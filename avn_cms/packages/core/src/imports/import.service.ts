@@ -7,6 +7,7 @@ import type { ImportOptions } from '../schemas';
 import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, invalid, notFound } from '../shared/errors';
+import { assertRoom } from '../usage/usage.service';
 import { MAX_FILE_BYTES, saveFile, signedDownloadPath } from '../storage/files';
 import { IMPORT_FIELDS, suggestMapping, type ColumnMapping } from './fields';
 import type { ImportParams, ImportResult } from './import.runner';
@@ -193,6 +194,9 @@ export async function startRun(ctx: Ctx, id: string, duplicateMode: ImportOption
     if (!job) throw notFound('Import');
     if (job.status !== 'VALIDATED')
       throw conflict('Check the file first (validation), then start the import.');
+    // The students this import will add must fit the plan; refusing now is kinder than stopping half way.
+    const adding = Number((job.result as { newRows?: number } | null)?.newRows ?? 0);
+    if (adding > 0) await assertRoom(db, 'leads', adding);
     const p = job.params as unknown as ImportParams;
     const params: ImportParams = { ...p, options: { ...p.options!, duplicateMode } };
     const res = await db.importJob.updateMany({

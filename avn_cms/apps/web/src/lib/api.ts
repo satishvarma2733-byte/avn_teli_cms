@@ -11,11 +11,13 @@ import {
   type Principal,
 } from '@avn-cms/auth';
 import { getConfig } from '@avn-cms/config';
-import { AppError, clientIpFrom, rateLimit } from '@avn-cms/core';
+import { AppError, captureError, clientIpFrom, logEvent, rateLimit } from '@avn-cms/core';
 import { can, type Action } from '@avn-cms/core/policy';
 import { TenantScopeViolation, type RoleCode } from '@avn-cms/db';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ZodError, type ZodType } from 'zod';
+
+import { recordRequest } from './metrics';
 
 /**
  * The request gate every API route goes through (ARCHITECTURE §3): authenticate → tenant
@@ -127,8 +129,12 @@ export function route(
 ): (req: NextRequest, rc: RouteCtx) => Promise<Response>;
 export function route(options: RouteOptions, handler: (input: never) => Promise<Wrapped | Response>) {
   const access = options.access ?? 'tenant';
-  return async (req: NextRequest, rc: RouteCtx): Promise<Response> => {
-    const requestId = randomUUID();
+  const gate = async (
+    req: NextRequest,
+    rc: RouteCtx,
+    requestId: string,
+    trace: RequestTrace,
+  ): Promise<Response> => {
     try {
       const raw = (await rc?.params) ?? {};
       const params = Object.fromEntries(
@@ -187,9 +193,11 @@ export function route(options: RouteOptions, handler: (input: never) => Promise<
           }
         }
         limiterKey = `user:${principal.userId}`;
+        trace.userId = principal.userId;
         if (access === 'tenant') {
           const ctx = contextFor(principal, { ip, ...(userAgent ? { userAgent } : {}) });
           if (!ctx) return errorResponse('FORBIDDEN', 'Choose a workspace to continue.');
+          trace.tenantId = ctx.tenantId;
           if (options.action && !can(ctx, options.action)) {
             return errorResponse('FORBIDDEN', 'You do not have permission to do this.');
           }
@@ -200,11 +208,12 @@ export function route(options: RouteOptions, handler: (input: never) => Promise<
       }
 
       const limit = options.limit ?? 300;
-      const rl = await rateLimit(
-        `${options.bucket ?? req.nextUrl.pathname.split('/').slice(0, 4).join('/')}:${limiterKey}`,
-        limit,
-        60,
-      );
+      // Reads and writes of one path are counted apart: a route's own limit (60 a minute for adding a student)
+      // must not be used up by the person browsing the list (the load test found a counselor refused after 60 views).
+      const bucket =
+        options.bucket ??
+        `${MUTATING.has(req.method) ? `${req.method}:` : ''}${req.nextUrl.pathname.split('/').slice(0, 4).join('/')}`;
+      const rl = await rateLimit(`${bucket}:${limiterKey}`, limit, 60);
       if (!rl.allowed) {
         return errorResponse('RATE_LIMITED', 'Too many requests. Please wait a moment.', undefined, {
           'Retry-After': String(rl.retryAfterSeconds),
@@ -223,6 +232,49 @@ export function route(options: RouteOptions, handler: (input: never) => Promise<
       return handleError(err, requestId);
     }
   };
+  return async (req: NextRequest, rc: RouteCtx): Promise<Response> => {
+    const requestId = randomUUID();
+    const started = performance.now();
+    const trace: RequestTrace = {};
+    const res = await gate(req, rc, requestId, trace);
+    finishRequest(req, res, requestId, performance.now() - started, trace);
+    return res;
+  };
+}
+
+/** Who made the request, filled in as the gate learns it, for the access log. */
+interface RequestTrace {
+  userId?: string;
+  tenantId?: string;
+}
+
+/**
+ * After every API request: the request id goes back to the caller (quote it to support; it is the same id
+ * as in the error log), the request is counted for /api/metrics, and one JSON line is logged. Which
+ * requests are logged is `ACCESS_LOG`: errors and slow requests by default. Only the path is logged,
+ * never the query string, which carries search text and phone numbers.
+ */
+function finishRequest(req: NextRequest, res: Response, requestId: string, ms: number, trace: RequestTrace) {
+  try {
+    res.headers.set('X-Request-Id', requestId);
+  } catch {
+    /* a response with immutable headers (a proxied stream): the id is still in the log */
+  }
+  const path = req.nextUrl.pathname;
+  recordRequest(req.method, path, res.status, ms);
+  const { ACCESS_LOG, SLOW_REQUEST_MS } = getConfig();
+  const slow = ms >= SLOW_REQUEST_MS;
+  if (ACCESS_LOG === 'off' || (ACCESS_LOG === 'errors' && res.status < 400 && !slow)) return;
+  logEvent(res.status >= 500 ? 'error' : res.status >= 400 ? 'warn' : 'info', 'request', {
+    requestId,
+    method: req.method,
+    path,
+    status: res.status,
+    ms: Math.round(ms),
+    ...(slow ? { slow: true } : {}),
+    ...(trace.userId ? { userId: trace.userId } : {}),
+    ...(trace.tenantId ? { tenantId: trace.tenantId } : {}),
+  });
 }
 
 export function handleError(err: unknown, requestId: string): Response {
@@ -233,19 +285,10 @@ export function handleError(err: unknown, requestId: string): Response {
   if (err instanceof SyntaxError)
     return errorResponse('VALIDATION_ERROR', 'The request body is not valid JSON.');
   if (err instanceof TenantScopeViolation) {
-    console.error(
-      JSON.stringify({ level: 'error', msg: 'tenant scope violation', requestId, error: err.message }),
-    );
+    logEvent('error', 'tenant scope violation', { requestId, error: err.message });
     return errorResponse('NOT_FOUND', 'Record not found.');
   }
-  console.error(
-    JSON.stringify({
-      level: 'error',
-      msg: 'unhandled',
-      requestId,
-      error: err instanceof Error ? err.stack : String(err),
-    }),
-  );
+  captureError(err, 'unhandled', { requestId });
   return errorResponse('INTERNAL', `Something went wrong on our side. Reference: ${requestId.slice(0, 8)}`);
 }
 

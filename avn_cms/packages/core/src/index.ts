@@ -5,6 +5,15 @@ export * from './shared/request';
 export { purgeAuthRecords } from '@avn-cms/auth';
 export { rateLimit, closeRateLimiter, pingRedis, type RateLimitResult } from './shared/rate-limit';
 export { audit } from './shared/audit';
+export { clearCacheForTests } from './shared/cache';
+export {
+  captureError,
+  logEvent,
+  workerStatus,
+  writeWorkerHeartbeat,
+  WORKER_HEARTBEAT_KEY,
+  type WorkerStatus,
+} from './shared/observability';
 export type { Ctx } from './shared/context';
 export * from './policy/index';
 export { sendMail, sendPasswordResetEmail, type MailResult } from './communications/email';
@@ -25,6 +34,7 @@ export type { RuleView, RunView } from './automation/rules.service';
 export { runAutomation, sweepAutomation, type SweepResult } from './automation/runner';
 export { STARTER_RULES, starterRuleRows } from './automation/starter';
 export * as notifications from './notifications/notification.service';
+export * as usage from './usage/usage.service';
 export * as documents from './documents/document.service';
 export { listStuckScans, rescanDocument } from './documents/stuck';
 export { documentsHealth, type DocumentsHealth } from './documents/health';
@@ -48,6 +58,7 @@ export {
   closeQueue,
   drainInProcessJobs,
   enqueue,
+  queueDepth,
   type JobKind,
   type JobPayload,
 } from './jobs/queue';

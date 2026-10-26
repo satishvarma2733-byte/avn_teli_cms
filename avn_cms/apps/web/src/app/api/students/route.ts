@@ -8,7 +8,7 @@ export const GET = route({}, async ({ req, ctx }) => {
   const result = await leads.listLeads(ctx, query(req, leadListQuerySchema));
   return ok(result.items, {
     nextCursor: result.nextCursor,
-    ...(result.total !== undefined ? { total: result.total } : {}),
+    ...(result.total !== undefined ? { total: result.total, totalExact: result.totalExact } : {}),
   });
 });
 

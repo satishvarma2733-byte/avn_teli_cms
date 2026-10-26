@@ -16,10 +16,17 @@ interface Tenant {
   slug: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'TRIAL';
   plan: { name: string; code: string } | null;
+  limits: { users: number | null; leads: number | null; storageBytes: number | null };
   createdAt: string;
   users: number;
   leads: number;
 }
+
+/** "5 / 15", or just "5" when the plan has no limit. */
+const of = (used: number, limit: number | null) =>
+  limit === null
+    ? used.toLocaleString('en-IN')
+    : `${used.toLocaleString('en-IN')} / ${limit.toLocaleString('en-IN')}`;
 
 const TONE: Record<Tenant['status'], Tone> = { ACTIVE: 'success', TRIAL: 'info', SUSPENDED: 'danger' };
 
@@ -32,6 +39,7 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
     text: React.ReactNode;
   } | null>(null);
   const [confirm, setConfirm] = useState<{ tenant: Tenant; kind: 'suspend' | 'impersonate' } | null>(null);
+  const [planFor, setPlanFor] = useState<Tenant | null>(null);
 
   async function reload() {
     const res = await api<Tenant[]>('/api/platform/tenants');
@@ -93,8 +101,8 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
                       <Badge tone={TONE[t.status]}>{t.status.toLowerCase()}</Badge>
                     </td>
                     <td className="px-4 py-3">{t.plan?.name ?? '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{t.users}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{t.leads.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{of(t.users, t.limits.users)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{of(t.leads, t.limits.leads)}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(t.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
@@ -104,6 +112,14 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
                           onClick={() => setConfirm({ tenant: t, kind: 'impersonate' })}
                         >
                           Open as admin
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Change plan: ${t.name}`}
+                          onClick={() => setPlanFor(t)}
+                        >
+                          Change plan
                         </Button>
                         {t.status === 'SUSPENDED' ? (
                           <Button size="sm" variant="ghost" onClick={() => setStatus(t, 'ACTIVE')}>
@@ -156,6 +172,18 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
         />
       )}
 
+      {planFor && (
+        <ChangePlanDialog
+          tenant={planFor}
+          onClose={() => setPlanFor(null)}
+          onDone={(name) => {
+            setNotice({ tone: 'success', text: `${planFor.name} is now on the ${name} plan.` });
+            setPlanFor(null);
+            reload();
+          }}
+        />
+      )}
+
       {confirm && (
         <Dialog
           open
@@ -191,6 +219,65 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
         />
       )}
     </div>
+  );
+}
+
+function ChangePlanDialog({
+  tenant,
+  onClose,
+  onDone,
+}: {
+  tenant: Tenant;
+  onClose: () => void;
+  onDone: (planName: string) => void;
+}) {
+  const api = useApi();
+  const [planCode, setPlanCode] = useState(tenant.plan?.code ?? 'STARTER');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    const res = await api<{ plan: { name: string } }>(`/api/platform/tenants/${tenant.id}/plan`, {
+      method: 'PATCH',
+      body: { planCode },
+    });
+    setBusy(false);
+    if (!res.ok) return setError(res.error.message);
+    onDone(res.data.plan.name);
+  }
+
+  return (
+    <Dialog
+      open
+      size="sm"
+      onOpenChange={onClose}
+      title={`Change plan for ${tenant.name}`}
+      description="A plan is refused when the agency already uses more than the new plan allows."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save} loading={busy}>
+            Change plan
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Field id="plan-code" label="Plan">
+          <Select id="plan-code" value={planCode} onChange={(e) => setPlanCode(e.target.value)}>
+            <option value="STARTER">Starter</option>
+            <option value="PROFESSIONAL">Professional</option>
+            <option value="ULTRA">Ultra</option>
+            <option value="ENTERPRISE">Enterprise</option>
+          </Select>
+        </Field>
+      </div>
+    </Dialog>
   );
 }
 

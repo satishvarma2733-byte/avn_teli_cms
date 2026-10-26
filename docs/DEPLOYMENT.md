@@ -49,6 +49,10 @@ problems if any are invalid). Empty values mean "not set".
 | `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | for documents | Cloudflare R2 (S3 API). All four, in **both the web app and the worker**; without them the documents vault answers "storage is not set up" (503). A half-set group stops the process at start-up. Setup: `DOCUMENTS.md` §9 |
 | `R2_ENDPOINT` | no | Overrides `https://<account>.r2.cloudflarestorage.com`. Only for a local S3-compatible server; leave unset on R2 |
 | `CLAMAV_HOST`, `CLAMAV_PORT` | for documents | clamd (default port 3310), reachable from the web app and the worker, **on a private network only**. Without it uploaded files stay "checking" and are never released |
+| `REPORT_CACHE_SECONDS` | no | Default 60. How long a dashboard or report answer is reused (then ten times as long it is still served while a fresh one is computed). `0` turns the cache off. Shared by all web instances through `REDIS_URL`. `REPORTING.md` §5 |
+| `ACCESS_LOG` | no | `errors` (default: requests that failed or were slow), `all`, or `off`. One JSON line per request, never the query string |
+| `SLOW_REQUEST_MS` | no | Default 1000. A request slower than this is always logged with `"slow": true` |
+| `METRICS_TOKEN` | no | 24+ characters. Turns on `GET /api/metrics` (Prometheus text) for `Authorization: Bearer <token>`. Unset: the endpoint answers 404 |
 | `SEED_PASSWORD` | dev only | Demo seed; the seed refuses to run when `NODE_ENV=production` |
 
 Generate secrets: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
@@ -92,15 +96,32 @@ Release order: **migrate → start new web instances → health check → switch
 worker.** Migrations are written to be backwards-compatible with the previous release (add,
 never rename or drop in the same release).
 
+**Migrations on a database that already holds a lot of data.** `scale_indexes` creates four indexes. On a table of
+millions of rows a plain `CREATE INDEX` blocks writes while it builds (tens of seconds to minutes). On such a database,
+run the same statements by hand first with `CREATE INDEX CONCURRENTLY` (outside a transaction, as the owner role); the
+migration's `IF NOT EXISTS` then makes it a no-op. `student_search` only adds a function and is instant. Run `ANALYZE`
+after a migration that adds indexes or after any large import. Never edit a migration that has been applied anywhere.
+
+**Sizing and scaling** are in `SCALABILITY.md` §6 (about 70 requests a second per web instance for the load-test mix; 10
+database connections per instance; put PgBouncer in front above about 8 instances).
+
 ## 5. Health and smoke checks
 
-- `GET /api/health` → `200 {"status":"ok","database":"up","redis":"up","storage":"up","scanner":"up"}`; `503` with
+- `GET /api/health` → `200 {"status":"ok","database":"up","redis":"up","storage":"up","scanner":"up","worker":"up"}`; `503` with
   `"degraded"` when the database or a configured Redis is down. No versions or hostnames.
-- `storage` (R2) and `scanner` (ClamAV) are each `up`, `down` or `not_configured`. They **never** change the
-  status or the HTTP code: the rest of the CRM works without documents, and a load balancer must not pull every
-  instance because R2 or ClamAV is down. Alert on either being `down` as its own check. Each probe gives up
-  after 1.5 seconds and the answer is kept 15 seconds per instance (`DOCUMENTS.md` §10a). Files whose virus scan
-  did not finish are listed for admins at the top of the Documents page.
+- `storage` (R2), `scanner` (ClamAV) and `worker` are each `up`, `down` or `not_configured`. They **never** change the
+  status or the HTTP code: the rest of the CRM works without documents or the worker, and a load balancer must not pull
+  every instance because R2, ClamAV or the worker is down (restarting web servers would not bring them back). Alert on
+  any of them being `down` as its own check. Each probe gives up after 1.5 seconds and the storage and scanner answers
+  are kept 15 seconds per instance (`DOCUMENTS.md` §10a). The worker answers `up` while it has checked in within the
+  last 45 seconds (it writes a heartbeat to Redis every 15); without Redis it is `not_configured`. Files whose virus
+  scan did not finish are listed for admins at the top of the Documents page.
+- `GET /api/metrics` (only when `METRICS_TOKEN` is set): Prometheus text with `avn_up`, process uptime and memory,
+  `avn_dependency_up{dependency=database|redis|storage|scanner|worker}`, `avn_worker_heartbeat_age_seconds`,
+  `avn_jobs{state=waiting|active|delayed|failed}`, and per-instance request counters and a duration histogram
+  (`avn_http_requests_total`, `avn_http_request_duration_seconds`, labelled by method, resource such as
+  `/api/students`, and status class). Scrape every web instance; put the token in the scraper's secret store. It is
+  rate limited and holds no tenant names, ids or personal data.
 - After each deploy:
   1. `GET /api/health` is 200.
   2. Sign in as an admin; open Dashboard, Leads, Follow-ups, Reports.
@@ -110,9 +131,13 @@ never rename or drop in the same release).
 
 ## 6. Logging and monitoring
 
-- Request errors are logged as one JSON line (`level`, `msg`, `requestId`, `error`); clients only
-  see a short reference id. Intake requests log channel, credential id, status and duration —
-  never the Authorization header, phone numbers or emails.
+- Everything is one JSON object per line on stdout (info, warn) or stderr (error), ready for any log collector.
+  Every API response carries `X-Request-Id`; the access log (`msg: "request"`: `requestId`, `method`, `path`, `status`,
+  `ms`, `slow`, `userId`, `tenantId`) records failures and slow requests by default (`ACCESS_LOG`, `SLOW_REQUEST_MS`),
+  and errors are logged with the stack and the same `requestId`; clients only see a short reference id (its first 8
+  characters). Pages that fail to render are logged as `render error` with Next's `digest`. Intake requests log channel,
+  credential id, status and duration — never the Authorization header, phone numbers or emails. The query string is
+  never logged. The alerts to set and what each one means are in `RUNBOOK.md` §2.
 - The worker logs each job result and failure as JSON. The stuck-jobs sweep logs one line per
   workspace only when it recovered something (`imports` / `exports` counts): treat that as a sign
   the worker was restarted or killed mid-run.
@@ -145,8 +170,10 @@ Details and reasons: `SECURITY.md`. Do these on the real host; none of them can 
 - Take daily logical backups (`pg_dump -Fc`) and keep point-in-time recovery (WAL archiving)
   if the host offers it. Back up `ENCRYPTION_KEY` and `SESSION_SECRET` separately from the
   database (MFA secrets are unreadable without the key).
-- Restore drill (do this before go-live): restore the latest dump into a new database, point a
-  staging web instance at it, run the smoke checks in §5.
+- Restore drill (do this before go-live and every quarter): `pnpm restore:drill` dumps a database, copies the dump out
+  of the server, restores it into a new database and checks row counts, indexes, policies, migrations and the
+  application role's access (`RUNBOOK.md` §5.2). Then restore the latest real dump into a new database, point a staging
+  web instance at it, and run the smoke checks in §5.
 - Redis holds only rate-limit counters and queue state; it can be lost without data loss.
 - **Documents are not in the database dump.** They live in the R2 bucket. R2 is durable, but it does not protect against deletion or a bad deploy: keep the bucket private, give the app's token only Object Read & Write on it, and copy the bucket to a second location (for example with `rclone`) on a schedule that matches how much you can afford to lose. A database restore without the bucket leaves records pointing at missing files.
 

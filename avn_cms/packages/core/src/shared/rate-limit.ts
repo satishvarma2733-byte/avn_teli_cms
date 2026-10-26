@@ -28,8 +28,37 @@ function redis(): Redis | null {
   return g.__avnRedis;
 }
 
-export async function rateLimit(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
+/** The one Redis connection of this process, shared with the answer cache (null without REDIS_URL). */
+export function sharedRedis(): Redis | null {
+  return redis();
+}
+
+/**
+ * The shared connection once it can take commands. The client fails commands at once rather than queueing them
+ * (so a dead Redis never stalls a request), which also means a client created a moment ago cannot yet take one:
+ * the first request after a start would have found Redis "down" (and the first health check said so). While the
+ * first connection is being made we wait for it, at most `timeoutMs`; after a connection has been lost we do not
+ * wait at all. Null when there is no Redis or it is not usable right now.
+ */
+export async function readyRedis(timeoutMs = 300): Promise<Redis | null> {
   const client = redis();
+  if (!client) return null;
+  if (client.status === 'ready') return client;
+  if (!['wait', 'connecting', 'connect'].includes(client.status)) return null;
+  return new Promise<Redis | null>((resolve) => {
+    const finish = (ok: boolean) => {
+      clearTimeout(timer);
+      client.off('ready', onReady);
+      resolve(ok ? client : null);
+    };
+    const onReady = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    client.once('ready', onReady);
+  });
+}
+
+export async function rateLimit(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
+  const client = await readyRedis();
   const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
   const fullKey = `rl:${key}:${bucket}`;
   const retryAfterSeconds = windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds);
@@ -68,8 +97,9 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
 
 /** Health probe for the shared Redis connection. */
 export async function pingRedis(timeoutMs = 1500): Promise<'up' | 'down' | 'not_configured'> {
-  const client = redis();
-  if (!client) return 'not_configured';
+  if (!redis()) return 'not_configured';
+  const client = await readyRedis(timeoutMs);
+  if (!client) return 'down';
   let timer: NodeJS.Timeout | undefined;
   try {
     const pong = await Promise.race([

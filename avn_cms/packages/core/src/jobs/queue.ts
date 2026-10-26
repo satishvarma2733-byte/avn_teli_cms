@@ -125,6 +125,37 @@ export async function drainInProcessJobs(): Promise<void> {
   while (inProcessJobs.size > 0) await Promise.all([...inProcessJobs]);
 }
 
+/**
+ * How many background jobs wait, run, are delayed or have failed (the failed ones are kept for 30 days).
+ * Null without Redis, or when it does not answer within `timeoutMs`: a monitoring call never hangs.
+ */
+export async function queueDepth(
+  timeoutMs = 1500,
+): Promise<{ waiting: number; active: number; delayed: number; failed: number } | null> {
+  const q = queue();
+  if (!q) return null;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const counts = await Promise.race([
+      q.getJobCounts('waiting', 'active', 'delayed', 'failed'),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+    if (!counts) return null;
+    return {
+      waiting: counts['waiting'] ?? 0,
+      active: counts['active'] ?? 0,
+      delayed: counts['delayed'] ?? 0,
+      failed: counts['failed'] ?? 0,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function closeQueue(): Promise<void> {
   if (g.__avnQueue) await g.__avnQueue.close().catch(() => undefined);
   // BullMQ leaves a connection it was handed open.

@@ -25,6 +25,9 @@ const PROTECTED_INDEXES = [
   'web_leads_idempotency_key',
   'students_name_trgm',
   'students_phone_trgm',
+  'students_parent_name_trgm',
+  'lead_status_history_funnel_idx',
+  'follow_ups_done_idx',
 ];
 
 describe('migrations', () => {

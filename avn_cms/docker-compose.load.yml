@@ -1,0 +1,54 @@
+# A separate, production-shaped Postgres for load tests (docs/SCALABILITY.md). Never holds real data.
+# Usage: pnpm load:up   (then load:migrate, load:seed, load:run).   pnpm load:down removes it and its data.
+#
+# Postgres is tuned the way a small production server would be (the stock settings are for a laptop with
+# a few hundred rows): memory for the cache and sorts, SSD-friendly planner costs, room for 1M+ leads.
+name: avn-cms-load
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    shm_size: 1gb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=6GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - max_connections=200
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - max_wal_size=16GB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - wal_compression=on
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    environment:
+      POSTGRES_USER: avn_owner
+      POSTGRES_PASSWORD: avn_owner_local_only
+      POSTGRES_DB: avn_cms_load
+    ports:
+      - '127.0.0.1:55460:5432'
+    volumes:
+      - postgres-load-data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U avn_owner -d avn_cms_load']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-load-data:

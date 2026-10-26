@@ -14,6 +14,7 @@ import { CLOSED_STAGES, type webLeadConvertSchema, type webLeadListQuerySchema }
 import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, forbidden, invalid, notFound } from '../shared/errors';
+import { assertRoom } from '../usage/usage.service';
 import { decodeKeyset, encodeKeyset, keysetWhere } from '../shared/pagination';
 import { loadSettings } from '../tenants/settings';
 import { sourceCodeFor, type IntakeDTO } from './intake';
@@ -312,6 +313,8 @@ export async function convert(ctx: Ctx, id: string, dto: z.output<typeof webLead
         payload: { webLeadId: wl.id },
       });
     } else {
+      // A new lead counts against the plan (the enquiry itself never does, so no website enquiry is lost).
+      await assertRoom(db, 'leads');
       if (existing) studentId = existing.id;
       else {
         const s = await db.student.create({

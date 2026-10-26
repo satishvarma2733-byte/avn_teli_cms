@@ -8,6 +8,7 @@ import {
   expiredFilesSweepAllTenants,
   overdueSweepAllTenants,
   stuckJobsSweepAllTenants,
+  usageSnapshot,
 } from './jobs';
 
 /**
@@ -31,6 +32,8 @@ export const SYSTEM_JOBS = {
   'automation-sweep': 2 * 60_000,
   // Ended sessions and used reset links older than a month / a week.
   'auth-cleanup': 60 * 60_000,
+  // This month's users, leads, storage and automation runs per workspace, for billing to read.
+  'usage-snapshot': 60 * 60_000,
 } as const;
 export type SystemJobName = keyof typeof SYSTEM_JOBS;
 
@@ -54,6 +57,8 @@ export async function processSystemJob(name: string) {
       return automationSweepAllTenants();
     case 'auth-cleanup':
       return authCleanup();
+    case 'usage-snapshot':
+      return usageSnapshot();
     default:
       throw new Error(`Unknown job ${name}`);
   }

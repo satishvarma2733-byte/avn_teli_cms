@@ -1,5 +1,5 @@
 import { getConfig } from '@avn-cms/config';
-import { JOB_QUEUE } from '@avn-cms/core';
+import { captureError, JOB_QUEUE, writeWorkerHeartbeat } from '@avn-cms/core';
 import { disconnectAll } from '@avn-cms/db';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -42,7 +42,17 @@ console.log(
   JSON.stringify({ level: 'info', msg: 'aVn CMS worker started', queues: [SYSTEM_QUEUE, JOB_QUEUE] }),
 );
 
+// Tell the web app we are alive: /api/health and /api/metrics report the worker as down when this stops.
+const startedAt = Date.now();
+const beat = () =>
+  writeWorkerHeartbeat(connection, startedAt).catch((err: unknown) =>
+    captureError(err, 'worker heartbeat failed'),
+  );
+await beat();
+const heartbeat = setInterval(() => void beat(), 15_000);
+
 async function shutdown() {
+  clearInterval(heartbeat);
   await Promise.all([systemWorker.close(), jobsWorker.close()]);
   await system.close();
   await connection.quit();

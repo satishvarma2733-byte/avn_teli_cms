@@ -11,6 +11,7 @@ import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, forbidden, invalid, notFound } from '../shared/errors';
 import { toE164 } from '../shared/phone';
+import { assertRoom } from '../usage/usage.service';
 
 /** Users workspace (PAGES_AND_ROUTES /users). Tenant admins only; privilege changes are audited. */
 
@@ -76,6 +77,7 @@ export async function createUser(ctx: Ctx, dto: z.output<typeof userCreateSchema
         fields: { email: 'Already in use.' },
       });
     }
+    await assertRoom(db, 'users');
     const created = await db.user.create({
       data: {
         name: dto.name,
@@ -120,6 +122,8 @@ export async function updateUser(ctx: Ctx, id: string, dto: z.output<typeof user
       select: { id: true, roleCode: true, status: true, name: true },
     });
     if (!user) throw notFound('User');
+    // Bringing a disabled person back counts as a new active user against the plan.
+    if (dto.status === 'ACTIVE' && user.status !== 'ACTIVE') await assertRoom(db, 'users');
     const losingAdmin =
       user.roleCode === 'TENANT_ADMIN' &&
       ((dto.role && dto.role !== 'TENANT_ADMIN') || dto.status === 'DISABLED');

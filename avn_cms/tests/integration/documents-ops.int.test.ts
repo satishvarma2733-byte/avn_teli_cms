@@ -217,6 +217,7 @@ describe('storage and scanner health', () => {
       redis: 'not_configured',
       storage: 'down',
       scanner: 'down',
+      worker: 'not_configured',
     });
   });
 });
