@@ -175,6 +175,16 @@ request and weekly: **`pnpm audit` (fails on moderate or worse), a secret scan o
 (gitleaks), and CodeQL** (`security-extended`). Dependabot proposes updates weekly. This phase upgraded `nodemailer`
 7→10 and `csv-parse` 6→7 and pinned patched releases of three transitive packages: **18 advisories (6 high) → 0**.
 
+**2026-11-04:** the scheduled scan found 16 new advisories, 4 of them critical. The critical ones are in Next.js 16.3.8:
+remote code execution without signing in through the image optimiser with SVG files and through `use cache`, plus a
+Server Actions denial of service. The others are address parsing in `nodemailer` and `fast-uri` under Prisma's tooling.
+Nothing is deployed yet, so nothing was exposed. `next` is now 16.4.5 and `nodemailer` 10.3.1, and `fast-uri` is pinned
+to ≥3.1.9 under `ajv`. **One advisory is accepted, not fixed:** `minimatch` <11.0.1 (GHSA-g3hv-75wg-m249, a denial
+of service through an attacker-supplied glob pattern). It reaches us only through eslint, typescript-eslint and the zip
+library inside exceljs, and they match only patterns written in our own code. No 3.x, 5.x or 10.x release is patched,
+and forcing 11 breaks `glob` 7. It is listed in `pnpm.auditConfig.ignoreGhsas` (`avn_cms/package.json`): remove it once
+exceljs and typescript-eslint move to minimatch 11.
+
 ## 3. Internal penetration-test checklist
 
 Each category is a test that runs in `pnpm test` (the file is named); a finding is listed in §4.
@@ -225,6 +235,8 @@ found by this review and is fixed and covered by a test.
 | 13 | P3 | A password such as `Password-2026!` met the length and mix rules | Common-password check |
 | 14 | P3 | No HSTS, no `Cross-Origin-Resource-Policy`, `style-src 'unsafe-inline'`, JSON bodies not required, API answers had no policy | Added; the one library that adds a style at run time (Radix scroll lock) is given the nonce; Zod's `eval` probe is switched off in the browser |
 | 15 | P3 | No CI: no automatic dependency, secret or static-analysis scan | `.github/workflows`, Dependabot, gitleaks config |
+| 16 | P1 | (2026-11-04, found by the scheduled CI scan) Next.js 16.3.8 had two critical remote-code-execution advisories; 16 advisories in all | Upgrades and one recorded acceptance (§2.6) |
+| 17 | P3 | (2026-11-04) CI had never passed: `tsc` on a fresh checkout lacked the route types that only `next dev`/`build` write, and two made-up test passwords tripped the secret scan | `next typegen` before `tsc`; the two values allow-listed by exact text |
 
 ## 5. Settings that matter (see `DEPLOYMENT.md` §2)
 

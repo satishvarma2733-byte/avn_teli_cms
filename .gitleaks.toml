@@ -18,4 +18,8 @@ regexes = [
   '''Demo-Password-2026''',
   '''E2e-Password-2026''',
   '''Test-Password-123''',
+  # Made-up passwords in tests: the strength checker's "ordinary password" examples and the
+  # two-step-verification browser test's throwaway account.
+  '''blue\.test\.of\.strength\.4''',
+  '''Mfa-E2e-Sign-In-2026-x''',
 ]

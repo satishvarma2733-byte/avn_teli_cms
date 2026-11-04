@@ -1,7 +1,7 @@
 # Build Status — aVn CMS
 
 > Live record. A module is **Verified** only when its behaviour runs and its checks pass.
-> Code: `avn_cms/`. Last updated: 2026-10-17.
+> Code: `avn_cms/`. Last updated: 2026-11-04.
 
 **Overall status: PHASES 1–10 IMPLEMENTED AND VERIFIED LOCALLY — NOT YET RUN ON A REAL HOST**
 
@@ -51,9 +51,9 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Plans, limits and usage metering | Verified | `plans.limits` (users, leads, storage) enforced where things are added; website enquiries never refused; hourly monthly snapshot into `usage_counters`; Settings usage card; platform plan change refused when over the new limits. No payments. `SCALABILITY.md` §7 |
 | Scale (1M leads) | Verified (laptop) | Search via `search_student_ids`, "1,000+" totals, dashboard and report answers cached for a minute (`REPORT_CACHE_SECONDS`), covering indexes. `SCALABILITY.md` |
 | Observability and operations | Verified | `X-Request-Id` on every API answer, JSON access/error logs, `instrumentation.ts` render errors, worker heartbeat, `/api/health` with `worker`, `/api/metrics` (Prometheus), restore drill, runbook. `RUNBOOK.md` |
-| CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | Written, **not yet run on GitHub** | `.github/workflows`; the same commands pass locally |
+| CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | **Failing on GitHub until the 2026-11-04 fixes** (not yet pushed) | `.github/workflows` have run on every push since phase 9. CI stopped at the type check every time, so its tests never ran there; the security scan failed its secret and dependency checks. Fixed locally: see Known issues. Confirm on the next push |
 
-## Tests (actual results, 2026-10-26, local Windows 11, Node 24.14, Postgres 17)
+## Tests (actual results, 2026-11-04, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5)
 
 | Suite | Command | Result |
 |---|---|---|
@@ -115,7 +115,15 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 - Notifications are in-app only (no email or push), and the navigation badge is checked every minute rather than pushed.
 - **Set `TRUSTED_PROXY_HOPS` on the real host.** The default (0) ignores `X-Forwarded-For`, which is safe but, behind a load balancer, counts every caller as one address (sign-in is then limited to 10 a minute for the whole site). Set it to the number of proxies in front of the app.
 - Two-step verification is optional unless `MFA_REQUIRED_ROLES` is set (recommended in production: `SUPER_ADMIN,TENANT_ADMIN`). A role that is required but has not enrolled can only set it up and sign out.
-- The new CI workflows have not run on GitHub yet (the same commands pass locally). `pnpm audit` is part of them and currently reports nothing.
+- **Found and fixed (2026-11-04, not yet pushed): CI had never passed on GitHub.**
+  - Every run since phase 9 failed at **Types**, so no unit, integration or browser test ever ran there. A fresh checkout
+    has no `.next/`, and `tsc` could not find the route types (`PageProps`) that only `next dev`/`next build` write. The
+    web `typecheck` now runs `next typegen` first, and passes on a fresh clone.
+  - The **secret scan** flagged two made-up test passwords. Both are allow-listed by exact text in `.gitleaks.toml`; the
+    history and the uncommitted files scan clean.
+  - The **dependency audit** found 16 new advisories, 4 critical (Next.js 16.3.8 remote code execution). `next` is now
+    16.4.5, with `nodemailer` and `fast-uri` patched, and one `minimatch` advisory recorded as accepted (`SECURITY.md` §2.6).
+  - The 12 open Dependabot pull requests failed for the same type-check reason. Rebase them after the push.
 - The seed (`pnpm db:seed`) does not install the starter automation rules, so the browser tests start without rules and add them from the page. In a development workspace an admin presses **Add starter rules**. Workspaces that existed when the Phase 8 migration ran got the overdue-escalation rule only.
 - Time-based rules fire up to about 2 minutes late (the worker sweeps every 2 minutes) and only look at recent records (3 days for uncontacted leads, 7 days for overdue calls).
 - Documents have never run against a real Cloudflare R2 bucket (no account or keys here). MinIO speaks the same S3 API and every flow is tested on it, but R2's CORS rules (`DOCUMENTS.md` §9) and its handling of signed uploads need one real try before go-live, as does the `HeadBucket` storage health probe with a bucket-scoped Object Read & Write token.
@@ -146,7 +154,7 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 ## Decisions requiring approval
 
 1. **Repository:** `main` is pushed to https://github.com/satishvarma2733-byte/avn_teli_cms
-   (2026-10-16, repo-local identity `opsewings`). CI and security scans are written (`.github/workflows`) and start on the next push; enable **private vulnerability reporting** and Dependabot alerts in the repository settings.
+   (2026-10-16, repo-local identity `opsewings`). CI and security scans run on every push. They failed until the 2026-11-04 fixes, which are not yet pushed. Enable **private vulnerability reporting** and branch protection (require CI) in the repository settings; Dependabot already opens pull requests.
 2. **Hosting target** for staging and production (Node server + Postgres + Redis).
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
 4. **Cloudflare R2 for staging/production:** create the bucket and an Object Read & Write token, set its CORS rules, and provide a private ClamAV host (`DOCUMENTS.md` §9–10); you will connect them later through `.env`.

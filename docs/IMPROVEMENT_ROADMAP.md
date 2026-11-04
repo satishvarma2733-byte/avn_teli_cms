@@ -16,7 +16,7 @@
 | 5 | **Scheduled backups with an off-site copy**, and a first restore drill on the real host | The drill passes locally (`RUNBOOK.md` §5); a backup nobody has restored on production is a hope | host |
 | 6 | **Wire the alerts** in `RUNBOOK.md` §2 to a pager or chat (health, 5xx rate, worker heartbeat, failed jobs, slow requests) | The signals exist; nobody is paged yet | host |
 | 7 | **A way back for someone who lost their authenticator and recovery codes** | **Built, locally:** an admin resets a colleague, a super admin resets an agency admin (`SECURITY.md` §2.1, `RUNBOOK.md` §4.4). Left: a super-admin account still uses the operator procedure | done (super-admin accounts: operator) |
-| 8 | **Enable GitHub private vulnerability reporting, Dependabot and branch protection**; run the CI and security workflows once | Written, never run on GitHub | owner |
+| 8 | **Enable GitHub private vulnerability reporting and branch protection**; get CI and security green on GitHub; work through the open Dependabot PRs | The workflows run on every push. They failed at the type check, the secret scan and the audit until the 2026-11-04 fixes (`BUILD_STATUS.md`, Known issues), which still have to be pushed | owner (settings); fixes done locally |
 | 9 | **Email delivery (SMTP provider)** for invitations and resets | Without it the admin copies links by hand | owner |
 | 10 | Reset the local dev database to load the corrected seed | Cosmetic, dev only | owner (destructive) |
 

@@ -54,7 +54,7 @@
     "exceljs": "^4.4.0",
     "globals": "^16.0.0",
     "ioredis": "^6.0.0",
-    "next": "16.3.8",
+    "next": "16.4.5",
     "prettier": "^3.9.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -75,7 +75,13 @@
     "overrides": {
       "deepmerge-ts": "^8.0.2",
       "mysql2": "^3.24.6",
-      "exceljs>uuid": "^11.1.1"
+      "exceljs>uuid": "^11.1.1",
+      "ajv>fast-uri": "^3.1.9"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-g3hv-75wg-m249"
+      ]
     }
   }
 }
