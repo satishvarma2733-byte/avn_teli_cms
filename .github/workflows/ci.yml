@@ -24,9 +24,6 @@ jobs:
     name: Checks and tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      # Docker Hub no longer serves new pulls of minio/minio; Quay does.
-      MINIO_IMAGE: quay.io/minio/minio:latest
     steps:
       - uses: actions/checkout@v4
 

@@ -129,7 +129,10 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 - Documents have never run against a real Cloudflare R2 bucket (no account or keys here). MinIO speaks the same S3 API and every flow is tested on it, but R2's CORS rules (`DOCUMENTS.md` §9) and its handling of signed uploads need one real try before go-live, as does the `HeadBucket` storage health probe with a bucket-scoped Object Read & Write token.
 - Downloads are audited when the signed link is issued, not when the bytes are fetched.
 - **Found and fixed (2026-10-16):** the Exports list (Phase 6) scrolled sideways on a phone once it had rows: the visually hidden "Action" header text is positioned against the page, not the table, so it sat off-screen at the far right and widened the page. My earlier phone check missed it because the list was empty. Fixed in the exports list and the new vault table (the scrolling wrapper is now the positioning context), and the browser tests now check phone width on the vault, exports and imports lists.
-- `docker-compose.yml` uses `minio/minio:latest`, which Docker Hub no longer lets new machines pull; it works here from the local cache. If it fails for you, use another S3-compatible server (`DOCUMENTS.md` §11).
+- **Found and fixed (2026-11-04):** with the type check fixed, CI then failed when starting its services. MinIO no longer
+  publishes any image (`minio/minio` on Docker Hub needs authentication, and Quay, which CI used, has no tags left), so
+  no new machine could start the stack. The stack now uses Chainguard's build of MinIO (`cgr.dev/chainguard/minio`),
+  running as root so existing data volumes keep working. The documents tests pass against it (`DOCUMENTS.md` §11).
 - `prisma migrate dev` hangs in this non-interactive environment; migrations here are applied with `prisma migrate deploy` and checked with `prisma migrate diff` (the only differences left are the two unmodelled indexes, `users_tenant_email_key` and the covering index `lead_status_history_funnel_idx`; never let a generated migration drop them).
 - Source ROI shows conversion only: ad spend isn't recorded.
 - **Found and fixed (2026-10-16):** the first test of the imports/exports queue against real Redis

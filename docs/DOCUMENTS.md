@@ -218,8 +218,11 @@ token: if `storage` shows `down` while uploads work, check that first.
 (`TEST_R2_BUCKET`) so they never touch development files. The first ClamAV start downloads its
 signatures.
 
-Docker Hub no longer lets new machines pull `minio/minio`. If the image is missing for you, point
-`R2_ENDPOINT` at any S3-compatible server (or a development R2 bucket) instead.
+MinIO stopped publishing images: `minio/minio` on Docker Hub asks for authentication and Quay has no
+tags left (checked 2026-11-04). The stack therefore uses `cgr.dev/chainguard/minio:latest`, Chainguard's
+build of the same server, so the S3 API, the `MINIO_*` settings and `mc` are unchanged. It runs as root, as
+the old image did, so a data volume the old image created keeps working. To use another image, set
+`MINIO_IMAGE` in `.env`, or point `R2_ENDPOINT` at any S3-compatible server (or a development R2 bucket).
 
 ---
 
