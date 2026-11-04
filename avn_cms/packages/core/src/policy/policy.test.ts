@@ -10,6 +10,7 @@ import { ACTIONS, MATRIX, can, listScope, type Action } from './index';
 const DOC: Record<Action, [string, string, string, string]> = {
   'tenant:manage': ['✅', '❌', '❌', '❌'],
   'tenant:impersonate': ['✅', '❌', '❌', '❌'],
+  'tenant:resetAdminMfa': ['✅', '❌', '❌', '❌'],
   'platform:analytics': ['✅', '❌', '❌', '❌'],
   'billing:manage': ['✅', '❌', '❌', '❌'],
   'billing:view': ['🟡 platform', '✅', '❌', '❌'],
@@ -17,6 +18,7 @@ const DOC: Record<Action, [string, string, string, string]> = {
   'user:manage': ['🟡 platform', '✅', '❌', '❌'],
   'user:delete': ['🟡 platform', '✅', '❌', '❌'],
   'user:resetPassword': ['🟡 platform', '✅', '❌', '❌'],
+  'user:resetMfa': ['🟡 platform', '✅', '❌', '❌'],
   'account:manage': ['✅ self', '✅ self', '✅ self', '✅ self'],
   'student:list': ['🟡 platform', '✅', '🟡 own', '🟡 own'],
   'student:read': ['🟡 platform', '✅', '🟡 own', '🟡 own'],

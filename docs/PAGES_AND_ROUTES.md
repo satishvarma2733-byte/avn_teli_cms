@@ -231,6 +231,7 @@ PATCH  /api/students/:id/documents/:docType   verify / reject / un-verify an ite
 GET    /api/users                  POST /api/users
 GET    /api/users/:id              PATCH /api/users/:id   DELETE /api/users/:id (requires lead transfer)
 POST   /api/users/:id/reset-password
+POST   /api/users/:id/reset-mfa     { reason, currentPassword }  an admin clears a lost two-step verification (audited, signs the person out, notifies them)
 POST   /api/users/:id/transfer-leads  { toUserId }
 GET    /api/automations            POST /api/automations  PATCH /api/automations/:id  DELETE /api/automations/:id
 POST   /api/automations/starter    add the missing starter rules
@@ -247,6 +248,8 @@ GET    /api/usage                  the workspace's plan, limits and use (admins;
 GET    /api/platform/tenants       POST /api/platform/tenants  PATCH /api/platform/tenants/:id
 PATCH  /api/platform/tenants/:id/plan   { planCode }  (refused when the agency is over the new plan's limits)
 POST   /api/platform/tenants/:id/impersonate   (audited; returns scoped session)
+GET    /api/platform/tenants/:id/admins   the agency's admins and whether two-step verification is on
+POST   /api/platform/tenants/:id/admins/:userId/reset-mfa   { reason, currentPassword }  a super admin clears an agency admin's lost two-step verification
 DELETE /api/platform/impersonation              stop acting as the agency
 ```
 

@@ -4,7 +4,14 @@ import { ownerDb } from '@avn-cms/db/owner';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { ctxFor } from '../fixtures/ctx';
-import { makeLead, makeTenant, makeUser, resetData, webLeadSubmission } from '../fixtures/factory';
+import {
+  TEST_PASSWORD,
+  makeLead,
+  makeTenant,
+  makeUser,
+  resetData,
+  webLeadSubmission,
+} from '../fixtures/factory';
 import { call, signIn, type Caller, type Method } from './helpers/http';
 
 /**
@@ -259,6 +266,12 @@ describe('another workspace (tenant leak / IDOR)', () => {
     },
     { route: 'users/[id]', method: 'DELETE', params: { id: w.b.user! } },
     { route: 'users/[id]/reset-password', method: 'POST', params: { id: w.b.user! } },
+    {
+      route: 'users/[id]/reset-mfa',
+      method: 'POST',
+      params: { id: w.b.adminUser! },
+      body: { reason: 'Lost phone and codes', currentPassword: TEST_PASSWORD },
+    },
     {
       route: 'users/[id]/transfer-leads',
       method: 'POST',
@@ -548,6 +561,7 @@ describe('what each role may do (every route against the policy)', () => {
     { route: 'users/[id]', method: 'PATCH', action: 'user:manage', body: { name: 'x' } },
     { route: 'users/[id]', method: 'DELETE', action: 'user:delete' },
     { route: 'users/[id]/reset-password', method: 'POST', action: 'user:resetPassword' },
+    { route: 'users/[id]/reset-mfa', method: 'POST', action: 'user:resetMfa', body: {} },
     { route: 'users/[id]/transfer-leads', method: 'POST', action: 'user:manage', body: {} },
     { route: 'settings', method: 'GET', action: 'settings:manage' },
     { route: 'settings', method: 'PATCH', action: 'settings:manage', body: {} },
@@ -588,6 +602,9 @@ describe('what each role may do (every route against the policy)', () => {
     { route: 'platform/tenants', method: 'POST', body: {} },
     { route: 'platform/tenants/[id]', method: 'PATCH', body: { status: 'ACTIVE' } },
     { route: 'platform/tenants/[id]/impersonate', method: 'POST' },
+    { route: 'platform/tenants/[id]/admins', method: 'GET' },
+    // Also covers the policy action 'tenant:resetAdminMfa' (platform staff only).
+    { route: 'platform/tenants/[id]/admins/[userId]/reset-mfa', method: 'POST', body: {} },
   ];
 
   const roles = [
@@ -637,6 +654,7 @@ describe('what each role may do (every route against the policy)', () => {
     const elsewhere: Action[] = [
       'tenant:manage',
       'tenant:impersonate',
+      'tenant:resetAdminMfa',
       'platform:analytics',
       'billing:manage',
       'billing:view',

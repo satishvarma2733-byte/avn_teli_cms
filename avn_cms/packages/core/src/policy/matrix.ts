@@ -14,6 +14,7 @@ export type Scope = 'tenant' | 'own' | 'self' | 'platform' | 'any' | null;
 export const ACTIONS = [
   'tenant:manage',
   'tenant:impersonate',
+  'tenant:resetAdminMfa',
   'platform:analytics',
   'billing:manage',
   'billing:view',
@@ -21,6 +22,7 @@ export const ACTIONS = [
   'user:manage',
   'user:delete',
   'user:resetPassword',
+  'user:resetMfa',
   'account:manage',
   'student:list',
   'student:read',
@@ -64,6 +66,7 @@ const row = (SUPER_ADMIN: Scope, TENANT_ADMIN: Scope, COUNSELOR: Scope, TELECALL
 export const MATRIX: Record<Action, Row> = {
   'tenant:manage': row('platform', null, null, null),
   'tenant:impersonate': row('platform', null, null, null),
+  'tenant:resetAdminMfa': row('platform', null, null, null),
   'platform:analytics': row('platform', null, null, null),
   'billing:manage': row('platform', null, null, null),
   'billing:view': row('platform', 'tenant', null, null),
@@ -71,6 +74,7 @@ export const MATRIX: Record<Action, Row> = {
   'user:manage': row('platform', 'tenant', null, null),
   'user:delete': row('platform', 'tenant', null, null),
   'user:resetPassword': row('platform', 'tenant', null, null),
+  'user:resetMfa': row('platform', 'tenant', null, null),
   'account:manage': row('self', 'self', 'self', 'self'),
   'student:list': row('platform', 'tenant', 'own', 'own'),
   'student:read': row('platform', 'tenant', 'own', 'own'),
@@ -105,6 +109,7 @@ export const MATRIX: Record<Action, Row> = {
 export const PLATFORM_ACTIONS: ReadonlySet<Action> = new Set([
   'tenant:manage',
   'tenant:impersonate',
+  'tenant:resetAdminMfa',
   'platform:analytics',
   'billing:manage',
 ]);

@@ -4,6 +4,7 @@ import { MoreHorizontal, Plus, ShieldCheck, UserPlus } from 'lucide-react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ResetMfaDialog, resetMfaMessage } from '@/components/security/reset-mfa-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/field';
@@ -40,7 +41,7 @@ export function UsersTable({ currentUserId }: { currentUserId: string }) {
     text: React.ReactNode;
   } | null>(null);
   const [dialog, setDialog] = useState<
-    null | { kind: 'invite' } | { kind: 'edit' | 'transfer' | 'delete'; user: User }
+    null | { kind: 'invite' } | { kind: 'edit' | 'transfer' | 'delete' | 'resetMfa'; user: User }
   >(null);
 
   const load = useCallback(async () => {
@@ -153,6 +154,11 @@ export function UsersTable({ currentUserId }: { currentUserId: string }) {
                               { label: 'Edit', run: () => setDialog({ kind: 'edit', user: u }) },
                               { label: 'Send password reset', run: () => resetPassword(u) },
                               {
+                                label: 'Reset two-step verification…',
+                                run: () => setDialog({ kind: 'resetMfa', user: u }),
+                                hidden: !u.mfaEnabled || u.id === currentUserId,
+                              },
+                              {
                                 label: 'Transfer leads…',
                                 run: () => setDialog({ kind: 'transfer', user: u }),
                                 hidden: u.activeLeads + u.openCalls === 0,
@@ -221,6 +227,21 @@ export function UsersTable({ currentUserId }: { currentUserId: string }) {
           onDone={(msg) => {
             setDialog(null);
             setNotice({ tone: 'success', text: msg });
+            load();
+          }}
+        />
+      )}
+      {dialog?.kind === 'resetMfa' && (
+        <ResetMfaDialog
+          personName={dialog.user.name}
+          endpoint={`/api/users/${dialog.user.id}/reset-mfa`}
+          onClose={() => setDialog(null)}
+          onDone={(outcome) => {
+            setDialog(null);
+            setNotice({
+              tone: outcome.notified.email ? 'success' : 'warning',
+              text: resetMfaMessage(outcome),
+            });
             load();
           }}
         />

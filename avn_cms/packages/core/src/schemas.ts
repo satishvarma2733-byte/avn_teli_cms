@@ -279,6 +279,16 @@ export const userUpdateSchema = z
 
 export const transferLeadsSchema = z.object({ toUserId: uuid });
 
+/** Resetting someone's two-step verification: why (kept in the audit log) and the acting admin's own password. */
+export const mfaResetSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(5, 'Say why, in a few words. It is kept in the audit log.')
+    .max(300, 'Use at most 300 characters.'),
+  currentPassword: z.string().min(1, 'Enter your password.').max(128),
+});
+
 // ── Web leads / intake ───────────────────────────────────────────────────────
 
 export const webLeadListQuerySchema = z.object({

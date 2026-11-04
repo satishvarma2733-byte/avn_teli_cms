@@ -401,3 +401,168 @@ test.describe('two-step verification', () => {
     await expect(page.getByText('Too many wrong codes')).toBeVisible();
   });
 });
+
+/** Turns two-step verification on through the person's own account page. Returns the secret and the codes. */
+async function enrolInBrowser(page: Page, email: string, password: string) {
+  await signIn(page, email, password);
+  await expect(page).toHaveURL(/\/app\/dashboard$/);
+  await page.goto('/app/account');
+  await page.getByRole('button', { name: 'Set up two-step verification' }).click();
+  await page.getByLabel('Your password').fill(password);
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByAltText('QR code for your authenticator app')).toBeVisible();
+  const secret = (await page.locator('code').first().textContent())!.trim();
+  await page.getByLabel('Verification code').fill(totpAt(secret, Date.now()));
+  await page.getByRole('button', { name: 'Turn on' }).click();
+  await expect(page.getByText('Save your recovery codes now')).toBeVisible();
+  const codes = await page.locator('ol.font-mono li').allTextContents();
+  await page.getByLabel('I have saved my recovery codes').check();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText('Two-step verification is on.')).toBeVisible();
+  return { secret, codes };
+}
+
+/** A person with two-step verification on who lost the phone and the codes: all they have is the password. */
+function lostFactorPerson(
+  email: string,
+  name: string,
+  roleCode: 'COUNSELOR' | 'TENANT_ADMIN',
+  password: string,
+) {
+  return {
+    async create() {
+      await withOwner(async (db) => {
+        const tenant = await db.tenant.findUniqueOrThrow({ where: { slug: 'demo' } });
+        await db.user.deleteMany({ where: { email } });
+        await db.user.create({
+          data: { tenantId: tenant.id, roleCode, name, email, passwordHash: await hashPassword(password) },
+        });
+      });
+    },
+    async remove() {
+      await withOwner(async (db) => {
+        const user = await db.user.findFirst({ where: { email } });
+        if (user) await db.notification.deleteMany({ where: { userId: user.id } });
+        await db.user.deleteMany({ where: { email } });
+      });
+    },
+  };
+}
+
+test.describe('lost authenticator and recovery codes: an admin resets two-step verification', () => {
+  test.use(as('admin'));
+  const email = 'lost.phone@demo.test';
+  const password = 'Lost-Phone-Sign-In-2026-x';
+  const person = lostFactorPerson(email, 'Lost Phone', 'COUNSELOR', password);
+  test.beforeAll(person.create);
+  test.afterAll(person.remove);
+
+  test('needs a reason and the admin’s own password; the person is signed out, signs in with a password alone and finds a notice', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(150_000);
+    const fresh = () => browser.newContext({ storageState: { cookies: [], origins: [] } });
+
+    // They set it up, then lose both the phone and the codes: a password alone no longer gets them in.
+    const before = await fresh();
+    const theirPage = await before.newPage();
+    await enrolInBrowser(theirPage, email, password);
+    await signOut(theirPage);
+    await signIn(theirPage, email, password);
+    await expect(theirPage).toHaveURL(/\/login\/mfa$/);
+
+    await page.goto('/app/users');
+    const row = page.getByRole('row').filter({ hasText: email });
+    await expect(row.getByLabel('Two-step verification on')).toBeVisible();
+    await row.getByRole('button', { name: 'Actions for Lost Phone' }).click();
+    await page.getByRole('menuitem', { name: 'Reset two-step verification…' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(
+      dialog.getByRole('heading', { name: /Reset two-step verification for Lost Phone/ }),
+    ).toBeVisible();
+    await expectAccessible(page);
+    const reset = dialog.getByRole('button', { name: 'Reset two-step verification' });
+    await expect(reset).toBeDisabled(); // nothing to go on yet
+    await dialog
+      .getByLabel('Why are you resetting it?')
+      .fill('Lost phone and codes; confirmed by video call');
+    await dialog.getByLabel('Your password').fill('not-my-password');
+    await reset.click();
+    await expect(dialog.getByText('Incorrect password.')).toBeVisible();
+
+    await dialog.getByLabel('Your password').fill(E2E_PASSWORD);
+    await reset.click();
+    await expect(page.getByText('Two-step verification was reset for Lost Phone')).toBeVisible();
+    await expect(row.getByLabel('Two-step verification on')).toHaveCount(0);
+    // Email is off in e2e: the admin is told to let them know, not that an email went out.
+    await expect(page.getByText('Email isn’t set up')).toBeVisible();
+
+    // The log says who did it and why.
+    await page.goto('/app/audit');
+    await expect(page.getByText('auth.mfa_reset_by_admin').first()).toBeVisible();
+
+    // The person's old sign-in is gone; a new one needs the password only, and the notice is waiting.
+    await before.close();
+    const after = await fresh();
+    const backPage = await after.newPage();
+    await signIn(backPage, email, password);
+    await expect(backPage).toHaveURL(/\/app\/dashboard$/);
+    await backPage.goto('/app/notifications');
+    await expect(backPage.getByText('Your two-step verification was reset')).toBeVisible();
+    await backPage.goto('/app/account');
+    await expect(backPage.getByRole('button', { name: 'Set up two-step verification' })).toBeVisible();
+    await after.close();
+  });
+});
+
+test.describe('lost authenticator and recovery codes: a super admin resets an agency admin', () => {
+  test.use(as('superadmin'));
+  const email = 'lost.admin@demo.test';
+  const password = 'Lost-Admin-Sign-In-2026-x';
+  const person = lostFactorPerson(email, 'Lost Admin', 'TENANT_ADMIN', password);
+  test.beforeAll(person.create);
+  test.afterAll(person.remove);
+
+  test('from the platform console, with a reason and the super admin’s own password', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(150_000);
+    const before = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const adminPage = await before.newPage();
+    await enrolInBrowser(adminPage, email, password);
+    await before.close();
+
+    await page.goto('/platform');
+    await page.getByRole('button', { name: 'Admins: Demo Agency (test data)' }).click();
+    const list = page.getByRole('dialog');
+    await expect(list.getByRole('heading', { name: /Admins of Demo Agency/ })).toBeVisible();
+    // Only the admin who has it on can be reset.
+    await expect(list.getByText('Two-step is off').first()).toBeVisible();
+    await expect(list.getByRole('button', { name: 'Reset two-step verification: Lost Admin' })).toBeVisible();
+    await expect(list.getByRole('button', { name: /^Reset two-step verification:/ })).toHaveCount(1);
+    await expectAccessible(page);
+    await list.getByRole('button', { name: 'Reset two-step verification: Lost Admin' }).click();
+
+    const form = page.getByRole('dialog');
+    await form
+      .getByLabel('Why are you resetting it?')
+      .fill('Only admin; lost phone and codes; verified by phone');
+    await form.getByLabel('Your password').fill('not-my-password');
+    await form.getByRole('button', { name: 'Reset two-step verification' }).click();
+    await expect(form.getByText('Incorrect password.')).toBeVisible();
+    await form.getByLabel('Your password').fill(E2E_PASSWORD);
+    await form.getByRole('button', { name: 'Reset two-step verification' }).click();
+    await expect(page.getByText('Two-step verification was reset for Lost Admin')).toBeVisible();
+
+    const after = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const backPage = await after.newPage();
+    await signIn(backPage, email, password);
+    await expect(backPage).toHaveURL(/\/app\/dashboard$/);
+    await backPage.goto('/app/notifications');
+    await expect(backPage.getByText('aVn CMS support reset your two-step verification')).toBeVisible();
+    await after.close();
+  });
+});

@@ -62,7 +62,7 @@ for public routes, plus a lower cap for requests with no session. The address is
 | `POST /api/auth/reset-password` | public, 10/min | `{ token, password }`; single use, expires |
 | `POST /api/auth/mfa/enroll`, `/confirm` | session | Start and finish two-step verification (needs the password) |
 | `POST /api/auth/mfa/verify` | session, MFA pending | Authenticator code or a recovery code |
-| `POST /api/auth/mfa/disable`, `/recovery-codes` | session | Turn off (needs password); make ten new recovery codes |
+| `POST /api/auth/mfa/disable`, `/recovery-codes` | session | Turn off (needs a current code or a recovery code); make ten new recovery codes. Someone who has neither has an admin reset it: `POST /api/users/{id}/reset-mfa` (§10) |
 | `GET /api/auth/sessions` · `DELETE /api/auth/sessions` · `DELETE /api/auth/sessions/{id}` | session | Devices; sign out all others; sign out one |
 | `POST /api/account/password` | session, 10/min | Change own password (signs out other devices) |
 
@@ -138,6 +138,7 @@ for public routes, plus a lower cap for requests with no session. The address is
 | `GET, POST /api/users` | `user:list`, `user:manage` | Team; invite |
 | `PATCH, DELETE /api/users/{id}` | `user:manage`, `user:delete` | Edit, change role, pause; delete |
 | `POST /api/users/{id}/reset-password` | `user:resetPassword` | Start a reset for someone |
+| `POST /api/users/{id}/reset-mfa` | `user:resetMfa` | Clear the two-step verification of someone who lost their authenticator and recovery codes. Body `{ reason, currentPassword }` (the acting admin's own password; reason 5–300 characters). 10/min, and 5 password checks per admin per 15 min (`429`). Signs the person out everywhere, tells them, audits `auth.mfa_reset_by_admin`. `403` for yourself; `404` for another workspace's person; `409` when it is already off; `422` for a wrong password (`fields.currentPassword`) or a missing reason. Answers `{ id, name, reenrolmentRequired, sessionsRevoked, notified: { inApp, email } }` |
 | `POST /api/users/{id}/transfer-leads` | `user:manage` | Move leads and open calls to a colleague |
 | `GET, PATCH /api/settings` | `settings:manage` | Time zone, round-robin, uncontacted minutes |
 | `POST /api/settings/sources` · `PATCH /api/settings/sources/{id}` | `settings:manage` | Lead sources |
@@ -152,6 +153,8 @@ for public routes, plus a lower cap for requests with no session. The address is
 | `PATCH /api/platform/tenants/{id}` | Pause or resume |
 | `PATCH /api/platform/tenants/{id}/plan` | `{ planCode }`; 409 when the agency uses more than the new plan allows |
 | `POST /api/platform/tenants/{id}/impersonate` · `DELETE /api/platform/impersonation` | Start and stop an audited impersonation |
+| `GET /api/platform/tenants/{id}/admins` | The agency's admins: `id`, `name`, `email`, `status`, `mfaEnabled`, `lastLoginAt` (no secrets) |
+| `POST /api/platform/tenants/{id}/admins/{userId}/reset-mfa` | The same reset as `/api/users/{id}/reset-mfa`, for an agency admin who has no other admin to ask. Body `{ reason, currentPassword }` (the super admin's own password). Only an admin of that agency (`422` for anyone else, `404` for another agency's). Audited in the agency's log (`auth.mfa_reset_by_admin`, `via: platform`) and the platform log (`platform.admin_mfa_reset`) |
 
 ## 12. Machine intake (credentials, not sessions)
 

@@ -65,12 +65,22 @@ the others", and optional **two-step verification** (authenticator app plus ten 
 Agencies can require it for chosen roles (`MFA_REQUIRED_ROLES`, recommended for admins and super admins); a required
 role that has not set it up can only set it up or sign out.
 
+**Lost phone and recovery codes.** An admin opens Users, the person's menu, **Reset two-step verification**, says why
+and types their own password again. The person is signed out of every device, told in the app (and by email when it is
+set up), and, if their role has to use two-step verification, must set it up again at their next sign-in. Admins can
+reset counselors, telecallers and other admins of their own workspace, never themselves. The only admin of an agency
+(or an admin whose colleagues are locked out too) is reset by a super admin from **Admins** in the platform console.
+Counselors and telecallers cannot reset anyone. Confirm it really is the person first (a call or in person): until they
+set it up again, anyone who knows their password can sign in. The reset, the reason and who did it are in the audit log
+(`auth.mfa_reset_by_admin`).
+
 ## 5. Platform staff
 
 Super admins use `/platform`: list agencies with their plan and use (users, leads, storage), create an agency (its
 first admin gets an invitation link, and the agency starts in trial with the starter sources and the starter
 automation rules), pause or resume it, change its plan (refused when the agency uses more than the new plan allows),
-and see non-personal metrics. **Impersonating** an agency (to help with a problem) shows a banner, lasts until it is
+see non-personal metrics, and **reset an agency admin's two-step verification** (Admins, next to the agency; only agency
+admins, with a reason and the super admin's own password; recorded in the platform log and in the agency's). **Impersonating** an agency (to help with a problem) shows a banner, lasts until it is
 stopped or the platform session ends (12 hours at most), writes an audit row at the start and at the end (in the
 platform log and in the agency's), and tags every change made in between with the super admin's id. Two-step
 verification applies to super admins like anyone else when the role is required to use it.

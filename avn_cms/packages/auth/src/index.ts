@@ -12,9 +12,12 @@ export {
   getMfaStatus,
   normalizeRecoveryCode,
   regenerateRecoveryCodes,
+  resetMfaByAdmin,
   verifyMfaForSession,
+  type MfaResetResult,
   type SecondFactorResult,
 } from './mfa';
+export { confirmPassword } from './reauth';
 export {
   burnPasswordCheck,
   hashPassword,

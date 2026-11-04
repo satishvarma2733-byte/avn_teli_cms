@@ -1,5 +1,7 @@
 import { randomInt } from 'node:crypto';
 
+import { getConfig } from '@avn-cms/config';
+import type { RoleCode } from '@avn-cms/db';
 import { ownerDb } from '@avn-cms/db/owner';
 
 import { auditAuth } from './audit';
@@ -15,7 +17,8 @@ import { generateTotpSecret, otpauthUrl, totpStep } from './totp';
  * Protections: a code is good once (the newest accepted 30-second step is remembered), five wrong
  * codes in a row pause second-factor checks for a while (longer each time), recovery codes are stored
  * only as keyed hashes, turning it on needs the account password, and turning it on or off signs
- * every other device out.
+ * every other device out. An administrator can clear it for someone who lost both their phone and their
+ * recovery codes (resetMfaByAdmin).
  */
 
 export class MfaAlreadyEnabled extends Error {
@@ -239,6 +242,115 @@ export async function disableMfa(
   await revokeOtherSessions(userId, sessionId);
   await auditAuth({ tenantId: user.tenantId, userId, action: 'auth.mfa_disabled' });
   return result;
+}
+
+export type MfaResetResult =
+  | {
+      ok: true;
+      name: string;
+      email: string;
+      role: RoleCode;
+      /** Their role has to use two-step verification, so they must set it up again at the next sign-in. */
+      reenrolmentRequired: boolean;
+      sessionsRevoked: number;
+    }
+  | { ok: false; reason: 'NOT_FOUND' | 'NOT_ENABLED' };
+
+/**
+ * The way back for someone who lost both their authenticator and their recovery codes. Clears the
+ * secret, the replay and pause counters and every recovery code, signs the person out everywhere, and
+ * writes the audit row (who, why, and how it was done), all in one transaction: nothing is cleared
+ * without a record, and no record is left for a reset that did not happen.
+ *
+ * The caller has already decided that the actor may do this (policy, not resetting themselves, the
+ * password asked for again). The person must belong to `tenantId`; anyone else is NOT_FOUND. When two
+ * administrators reset the same person at once, one gets NOT_ENABLED.
+ *
+ * `via: 'platform'` is a super admin working from the platform console: it is also written to the
+ * platform log, as impersonation is.
+ */
+export async function resetMfaByAdmin(input: {
+  tenantId: string;
+  userId: string;
+  by: string;
+  via: 'workspace' | 'platform';
+  reason: string;
+  /** Set when a super admin acted inside the workspace (impersonation). */
+  impersonatedBy?: string | null | undefined;
+  ip?: string | undefined;
+  userAgent?: string | undefined;
+}): Promise<MfaResetResult> {
+  return ownerDb().$transaction(async (tx) => {
+    const user = await tx.user.findFirst({
+      where: { id: input.userId, tenantId: input.tenantId, deletedAt: null },
+      select: { id: true, name: true, email: true, roleCode: true },
+    });
+    if (!user) return { ok: false, reason: 'NOT_FOUND' };
+
+    // Claimed in the update itself, so the audit row below is written once per reset.
+    const cleared = await tx.user.updateMany({
+      where: { id: user.id, mfaEnabledAt: { not: null } },
+      data: {
+        mfaSecret: null,
+        mfaEnabledAt: null,
+        mfaLastStep: null,
+        mfaFailedCount: 0,
+        mfaLockedUntil: null,
+      },
+    });
+    if (cleared.count !== 1) return { ok: false, reason: 'NOT_ENABLED' };
+    await tx.mfaRecoveryCode.deleteMany({ where: { userId: user.id } });
+    // Every device, including a sign-in that was waiting for its code.
+    const sessions = await tx.session.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    const reenrolmentRequired = getConfig().MFA_REQUIRED_ROLES.includes(user.roleCode);
+    await auditAuth(
+      {
+        tenantId: input.tenantId,
+        userId: input.by,
+        action: 'auth.mfa_reset_by_admin',
+        entityType: 'user',
+        entityId: user.id,
+        newValue: {
+          reason: input.reason,
+          via: input.via,
+          role: user.roleCode,
+          reenrolmentRequired,
+          sessionsRevoked: sessions.count,
+        },
+        ip: input.ip,
+        userAgent: input.userAgent,
+        impersonatedBy: input.impersonatedBy ?? null,
+      },
+      tx,
+    );
+    if (input.via === 'platform') {
+      await auditAuth(
+        {
+          tenantId: null,
+          userId: input.by,
+          action: 'platform.admin_mfa_reset',
+          entityType: 'tenant',
+          entityId: input.tenantId,
+          newValue: { userId: user.id, reason: input.reason },
+          ip: input.ip,
+          userAgent: input.userAgent,
+        },
+        tx,
+      );
+    }
+    return {
+      ok: true,
+      name: user.name,
+      email: user.email,
+      role: user.roleCode,
+      reenrolmentRequired,
+      sessionsRevoked: sessions.count,
+    };
+  });
 }
 
 /** A new set of recovery codes (the old ones stop working). Needs a current code. */

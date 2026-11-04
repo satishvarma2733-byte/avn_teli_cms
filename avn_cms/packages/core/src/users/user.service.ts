@@ -1,4 +1,10 @@
-import { hashPassword, issueSetPasswordToken, randomToken, revokeAllSessions } from '@avn-cms/auth';
+import {
+  hashPassword,
+  issueSetPasswordToken,
+  randomToken,
+  resetMfaByAdmin,
+  revokeAllSessions,
+} from '@avn-cms/auth';
 import { getConfig } from '@avn-cms/config';
 import { withTenant, type Prisma, type RoleCode } from '@avn-cms/db';
 import type { z } from 'zod';
@@ -6,12 +12,14 @@ import type { z } from 'zod';
 import { ELIGIBLE_ROLES } from '../assignments/assignment.repository';
 import { sendMail } from '../communications/email';
 import { authorize } from '../policy/index';
-import type { transferLeadsSchema, userCreateSchema, userUpdateSchema } from '../schemas';
+import type { mfaResetSchema, transferLeadsSchema, userCreateSchema, userUpdateSchema } from '../schemas';
 import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, forbidden, invalid, notFound } from '../shared/errors';
+import { captureError } from '../shared/observability';
 import { toE164 } from '../shared/phone';
 import { assertRoom } from '../usage/usage.service';
+import { emailResetNotice, requireOwnPassword, resetNotice } from './mfa-reset';
 
 /** Users workspace (PAGES_AND_ROUTES /users). Tenant admins only; privilege changes are audited. */
 
@@ -175,6 +183,77 @@ export async function adminResetPassword(ctx: Ctx, id: string) {
   const token = await issueSetPasswordToken(user.id);
   await revokeAllSessions(user.id);
   return sendSetPasswordLink(user.email, user.name, token, 'reset');
+}
+
+/**
+ * The way back for someone who lost both their authenticator and their recovery codes. A workspace admin
+ * clears the person's two-step verification: they are signed out everywhere, told, and (if their role has
+ * to use it) set it up again at the next sign-in. Needs the acting admin's password again and a reason
+ * for the audit log. An admin can't reset themselves; the only admin of a workspace is reset by a super
+ * admin from the platform console (platform.resetAdminMfa).
+ */
+export async function adminResetMfa(ctx: Ctx, id: string, dto: z.output<typeof mfaResetSchema>) {
+  authorize(ctx, 'user:resetMfa');
+  if (id === ctx.userId) {
+    throw forbidden(
+      'You can’t reset your own two-step verification. Ask another admin; if you are the only admin, contact aVn CMS support.',
+    );
+  }
+  const { target, actorName } = await withTenant(ctx.tenantId, async (db) => ({
+    target: await db.user.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, mfaEnabledAt: true },
+    }),
+    actorName: (await db.user.findFirst({ where: { id: ctx.userId }, select: { name: true } }))?.name,
+  }));
+  if (!target) throw notFound('User');
+  if (!target.mfaEnabledAt)
+    throw conflict('Two-step verification isn’t on for this person, so there is nothing to reset.');
+  await requireOwnPassword(ctx.userId, dto.currentPassword);
+
+  const result = await resetMfaByAdmin({
+    tenantId: ctx.tenantId,
+    userId: id,
+    by: ctx.userId,
+    via: 'workspace',
+    reason: dto.reason,
+    impersonatedBy: ctx.impersonatedBy,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+  });
+  if (!result.ok) {
+    throw result.reason === 'NOT_FOUND'
+      ? notFound('User')
+      : conflict('Two-step verification was already reset for this person.');
+  }
+
+  // A super admin acting inside the workspace is not one of its people: the person is told it was support.
+  const by = ctx.impersonatedBy ? 'aVn CMS support' : (actorName ?? 'An admin');
+  const notice = resetNotice(by, result.reenrolmentRequired);
+  let inApp = true;
+  try {
+    await withTenant(ctx.tenantId, (db) =>
+      db.notification.create({
+        data: {
+          userId: id,
+          type: 'security.mfa_reset',
+          title: notice.title,
+          body: notice.body,
+        } as Prisma.NotificationUncheckedCreateInput,
+      }),
+    );
+  } catch (err) {
+    inApp = false; // the reset has happened and is audited; failing to tell must not hide that
+    captureError(err, 'mfa reset notification failed', { userId: id });
+  }
+  const email = await emailResetNotice(result, by, result.reenrolmentRequired);
+  return {
+    id,
+    name: result.name,
+    reenrolmentRequired: result.reenrolmentRequired,
+    sessionsRevoked: result.sessionsRevoked,
+    notified: { inApp, email },
+  };
 }
 
 /** Transfer-on-delete (RBAC + SCHEMA): move every active assignment and open call to another user. */

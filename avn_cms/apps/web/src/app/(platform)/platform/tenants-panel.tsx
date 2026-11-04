@@ -1,8 +1,13 @@
 'use client';
 
-import { Building2, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Building2, Plus, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
+import {
+  ResetMfaDialog,
+  resetMfaMessage,
+  type MfaResetOutcome,
+} from '@/components/security/reset-mfa-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/field';
@@ -40,6 +45,7 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
   } | null>(null);
   const [confirm, setConfirm] = useState<{ tenant: Tenant; kind: 'suspend' | 'impersonate' } | null>(null);
   const [planFor, setPlanFor] = useState<Tenant | null>(null);
+  const [adminsFor, setAdminsFor] = useState<Tenant | null>(null);
 
   async function reload() {
     const res = await api<Tenant[]>('/api/platform/tenants');
@@ -121,6 +127,14 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
                         >
                           Change plan
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Admins: ${t.name}`}
+                          onClick={() => setAdminsFor(t)}
+                        >
+                          Admins
+                        </Button>
                         {t.status === 'SUSPENDED' ? (
                           <Button size="sm" variant="ghost" onClick={() => setStatus(t, 'ACTIVE')}>
                             Reactivate
@@ -184,6 +198,20 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
         />
       )}
 
+      {adminsFor && (
+        <AdminsDialog
+          tenant={adminsFor}
+          onClose={() => setAdminsFor(null)}
+          onReset={(outcome) => {
+            setAdminsFor(null);
+            setNotice({
+              tone: outcome.notified.email ? 'success' : 'warning',
+              text: resetMfaMessage(outcome),
+            });
+          }}
+        />
+      )}
+
       {confirm && (
         <Dialog
           open
@@ -219,6 +247,106 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
         />
       )}
     </div>
+  );
+}
+
+interface Admin {
+  id: string;
+  name: string;
+  email: string;
+  status: 'ACTIVE' | 'DISABLED';
+  mfaEnabled: boolean;
+  lastLoginAt: string | null;
+}
+
+/**
+ * An agency's admins, with a way back for one who lost both their authenticator and their recovery codes
+ * and has no other admin to ask. The reset form replaces the list while it is open.
+ */
+function AdminsDialog({
+  tenant,
+  onClose,
+  onReset,
+}: {
+  tenant: Tenant;
+  onClose: () => void;
+  onReset: (outcome: MfaResetOutcome) => void;
+}) {
+  const api = useApi();
+  const [admins, setAdmins] = useState<Admin[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<Admin | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void api<Admin[]>(`/api/platform/tenants/${tenant.id}/admins`).then((res) => {
+      if (!live) return;
+      if (res.ok) setAdmins(res.data);
+      else setError(res.error.message);
+    });
+    return () => {
+      live = false;
+    };
+  }, [api, tenant.id]);
+
+  if (resetting) {
+    return (
+      <ResetMfaDialog
+        personName={resetting.name}
+        endpoint={`/api/platform/tenants/${tenant.id}/admins/${resetting.id}/reset-mfa`}
+        onClose={() => setResetting(null)}
+        onDone={onReset}
+      />
+    );
+  }
+  return (
+    <Dialog
+      open
+      onOpenChange={onClose}
+      title={`Admins of ${tenant.name}`}
+      description="If an admin lost their phone and recovery codes and no other admin can reset them, you can."
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      {error && <Alert tone="danger">{error}</Alert>}
+      {!admins && !error && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {admins && (
+        <ul className="divide-y divide-border">
+          {admins.map((a) => (
+            <li key={a.id} className="flex items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="truncate">{a.name}</span>
+                  {a.status === 'DISABLED' && <Badge tone="danger">Disabled</Badge>}
+                  {a.mfaEnabled && (
+                    <ShieldCheck
+                      className="size-4 shrink-0 text-success"
+                      aria-label="Two-step verification on"
+                    />
+                  )}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">{a.email}</div>
+              </div>
+              {a.mfaEnabled ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label={`Reset two-step verification: ${a.name}`}
+                  onClick={() => setResetting(a)}
+                >
+                  Reset two-step
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground">Two-step is off</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Dialog>
   );
 }
 

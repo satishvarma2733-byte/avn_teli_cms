@@ -1,19 +1,25 @@
-import type { Prisma } from '@avn-cms/db';
+import type { BaseClient, Prisma } from '@avn-cms/db';
 import { ownerDb } from '@avn-cms/db/owner';
 
-/** Security-event audit rows written by the auth module (owner client: may be platform-level). */
-export async function auditAuth(entry: {
-  tenantId: string | null;
-  userId: string | null;
-  action: string;
-  entityType?: string;
-  entityId?: string | null;
-  newValue?: Prisma.InputJsonValue;
-  ip?: string | undefined;
-  userAgent?: string | undefined;
-  impersonatedBy?: string | null;
-}): Promise<void> {
-  await ownerDb().auditLog.create({
+/**
+ * Security-event audit rows written by the auth module (owner client: may be platform-level). Pass the
+ * transaction client to commit the row together with the change it records.
+ */
+export async function auditAuth(
+  entry: {
+    tenantId: string | null;
+    userId: string | null;
+    action: string;
+    entityType?: string;
+    entityId?: string | null;
+    newValue?: Prisma.InputJsonValue;
+    ip?: string | undefined;
+    userAgent?: string | undefined;
+    impersonatedBy?: string | null;
+  },
+  db: Pick<BaseClient, 'auditLog'> = ownerDb(),
+): Promise<void> {
+  await db.auditLog.create({
     data: {
       tenantId: entry.tenantId,
       userId: entry.userId,

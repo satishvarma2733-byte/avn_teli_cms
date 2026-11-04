@@ -3,6 +3,7 @@ import {
   hashPassword,
   issueSetPasswordToken,
   randomToken,
+  resetMfaByAdmin,
   setActingTenant,
   type Principal,
 } from '@avn-cms/auth';
@@ -13,7 +14,10 @@ import { z } from 'zod';
 
 import { starterRuleRows } from '../automation/starter';
 import { sendMail } from '../communications/email';
-import { conflict, forbidden, notFound } from '../shared/errors';
+import type { mfaResetSchema } from '../schemas';
+import { conflict, forbidden, invalid, notFound } from '../shared/errors';
+import { captureError } from '../shared/observability';
+import { emailResetNotice, requireOwnPassword, resetNotice } from '../users/mfa-reset';
 import { parsePlanLimits } from '../usage/usage.service';
 
 /**
@@ -242,6 +246,83 @@ export async function setTenantPlan(
     ...meta,
   });
   return { id: tenantId, plan: { code: plan.code, name: plan.name } };
+}
+
+/** An agency's admins, for the platform console: who they are, and whether two-step verification is on. */
+export async function listTenantAdmins(p: Principal, tenantId: string) {
+  requireSuperAdmin(p);
+  const db = ownerDb();
+  if (!(await db.tenant.findUnique({ where: { id: tenantId }, select: { id: true } })))
+    throw notFound('Tenant');
+  const admins = await db.user.findMany({
+    where: { tenantId, roleCode: 'TENANT_ADMIN', deletedAt: null },
+    orderBy: [{ status: 'asc' }, { name: 'asc' }],
+    select: { id: true, name: true, email: true, status: true, mfaEnabledAt: true, lastLoginAt: true },
+  });
+  return admins.map(({ mfaEnabledAt, ...a }) => ({ ...a, mfaEnabled: mfaEnabledAt !== null }));
+}
+
+/**
+ * The way back for an agency admin who lost both their authenticator and their recovery codes and has no
+ * other admin to ask (or whose other admins are locked out too). Same effect as a workspace admin's reset
+ * (users.adminResetMfa), but for a super admin and only for an agency's admins, whom no one else could
+ * reset: signed out everywhere, told, and made to set it up again if their role has to use it. Needs the
+ * super admin's own password again and a reason; written to the platform log and to the agency's.
+ */
+export async function resetAdminMfa(
+  p: Principal,
+  tenantId: string,
+  userId: string,
+  dto: z.output<typeof mfaResetSchema>,
+  meta: { ip?: string; userAgent?: string } = {},
+) {
+  requireSuperAdmin(p);
+  const target = await ownerDb().user.findFirst({
+    where: { id: userId, tenantId, deletedAt: null },
+    select: { roleCode: true, mfaEnabledAt: true },
+  });
+  if (!target) throw notFound('User');
+  if (target.roleCode !== 'TENANT_ADMIN')
+    throw invalid(
+      'Only an agency’s admins are reset from here. The agency’s own admins reset everyone else.',
+    );
+  if (!target.mfaEnabledAt)
+    throw conflict('Two-step verification isn’t on for this person, so there is nothing to reset.');
+  await requireOwnPassword(p.userId, dto.currentPassword);
+
+  const result = await resetMfaByAdmin({
+    tenantId,
+    userId,
+    by: p.userId,
+    via: 'platform',
+    reason: dto.reason,
+    ...meta,
+  });
+  if (!result.ok) {
+    throw result.reason === 'NOT_FOUND'
+      ? notFound('User')
+      : conflict('Two-step verification was already reset for this person.');
+  }
+
+  const by = 'aVn CMS support';
+  const notice = resetNotice(by, result.reenrolmentRequired);
+  let inApp = true;
+  try {
+    await ownerDb().notification.create({
+      data: { tenantId, userId, type: 'security.mfa_reset', title: notice.title, body: notice.body },
+    });
+  } catch (err) {
+    inApp = false; // the reset has happened and is audited; failing to tell must not hide that
+    captureError(err, 'mfa reset notification failed', { userId });
+  }
+  const email = await emailResetNotice(result, by, result.reenrolmentRequired);
+  return {
+    id: userId,
+    name: result.name,
+    reenrolmentRequired: result.reenrolmentRequired,
+    sessionsRevoked: result.sessionsRevoked,
+    notified: { inApp, email },
+  };
 }
 
 /**

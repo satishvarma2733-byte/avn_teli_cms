@@ -109,17 +109,34 @@ stuck-jobs sweep within a few minutes so people can start over (`IMPORT_EXPORT.m
 - *One person is locked:* the lock ends by itself; an admin can reset their password, which also signs them out
   everywhere.
 - *Cookies not stored:* `APP_URL` must be the exact `https://` origin people use.
-- *Lost authenticator and recovery codes:* there is no self-service path (`IMPROVEMENT_ROADMAP.md` P0 #7). After
-  checking the person's identity, an operator with the owner database role clears the second factor so they can enrol
-  again, and records why:
-  ```sql
-  -- psql as the owner role; <id> is the user's id. Check the row first.
-  UPDATE users SET mfa_secret = NULL, mfa_enabled_at = NULL, mfa_last_step = NULL,
-                   mfa_failed_count = 0, mfa_locked_until = NULL WHERE id = '<id>';
-  DELETE FROM mfa_recovery_codes WHERE user_id = '<id>';
-  ```
-  If their role is in `MFA_REQUIRED_ROLES` they must enrol again at the next sign-in. Revoke their sessions
-  (`DELETE FROM sessions WHERE user_id = '<id>'`) and add a note to the ticket.
+- *Lost authenticator and recovery codes:* no SQL needed; an administrator resets it in the app
+  (`SECURITY.md` §2.1). First confirm it really is the person, out of band (a call or in person), and note the ticket.
+  - **A counselor, telecaller or admin of a workspace:** another admin of that workspace opens Users → the person's
+    menu → **Reset two-step verification**, gives a reason and types their own password. Nobody can reset themselves.
+  - **The only admin of an agency, or admins who are all locked out:** a super admin opens the platform console →
+    the agency's **Admins** → **Reset two-step** next to the person, with a reason and their own password. (Or acts as
+    the agency and uses Users, as for any other person.)
+  - What happens: the person is signed out everywhere, gets an in-app notice (and an email when SMTP is set up; if
+    not, tell them yourself), and the audit log gets `auth.mfa_reset_by_admin` (who, why, via `workspace` or
+    `platform`). If their role is in `MFA_REQUIRED_ROLES` they set it up again at their next sign-in and can do nothing
+    else until they have. Until then anyone who knows their password can sign in, so if the phone may be stolen also
+    send a password reset (Users → **Send password reset**) and have them choose a new password straight away.
+  - *"Too many tries"* (429) means five password checks in 15 minutes by that admin; wait the time shown.
+  - *"There is nothing to reset"* (409) means two-step verification is already off, or another admin just reset it.
+  - **A super-admin account** (platform, no agency) has nobody above it, so an operator with the owner database role
+    does it by hand after the same identity check. Check the row first, then record why in the ticket:
+    ```sql
+    -- psql as the owner role; <id> is the user's id (role_code = 'SUPER_ADMIN').
+    BEGIN;
+    UPDATE users SET mfa_secret = NULL, mfa_enabled_at = NULL, mfa_last_step = NULL,
+                     mfa_failed_count = 0, mfa_locked_until = NULL WHERE id = '<id>';
+    DELETE FROM mfa_recovery_codes WHERE user_id = '<id>';
+    UPDATE sessions SET revoked_at = now() WHERE user_id = '<id>' AND revoked_at IS NULL;
+    INSERT INTO audit_logs (id, action, entity_type, entity_id, new_value)
+      VALUES (gen_random_uuid(), 'platform.operator_mfa_reset', 'user', '<id>', '{"reason":"<ticket and why>"}');
+    COMMIT;
+    ```
+    Their role is normally in `MFA_REQUIRED_ROLES`, so they enrol again at the next sign-in.
 
 ### 4.5 Jobs: failed, stuck or piling up
 

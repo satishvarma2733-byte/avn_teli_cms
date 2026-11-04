@@ -29,7 +29,7 @@ intake credentials are logged by name and username only (the secret is shown onc
 
 | Area | Actions |
 |---|---|
-| Sign-in and account | `auth.login`, `auth.logout`, `auth.password_changed`, `auth.password_reset_requested`, `auth.password_reset`, `auth.mfa_enabled`, `auth.mfa_disabled`, `auth.mfa_recovery_regenerated`, `auth.mfa_recovery_used`, `auth.sessions_revoked`, plus lock-outs (`auth.locked`, `auth.mfa_locked`) |
+| Sign-in and account | `auth.login`, `auth.logout`, `auth.password_changed`, `auth.password_reset_requested`, `auth.password_reset`, `auth.mfa_enabled`, `auth.mfa_disabled`, `auth.mfa_recovery_regenerated`, `auth.mfa_recovery_used`, `auth.mfa_reset_by_admin` (who reset whose two-step verification, why, and whether they must enrol again), `auth.sessions_revoked`, plus lock-outs (`auth.locked`, `auth.mfa_locked`) |
 | Students and leads | `student.create`, `student.update`, `student.delete`, `lead.update`, `lead.stage_change`, `lead.assign`, `note.create` |
 | Follow-ups | `followup.schedule`, `followup.reschedule`, `followup.log` |
 | Web leads | `web_lead.status`, `web_lead.convert`, `intake_credential.create`, `intake_credential.rotate`, `intake_credential.revoke` |
@@ -38,7 +38,7 @@ intake credentials are logged by name and username only (the secret is shown onc
 | Imports and exports | `import.upload`, `import.start`, `import.run`, `import.cancel`, `export.requested`, `export.run`, `export.downloaded`, `file.downloaded` |
 | Documents | `folder.created`, `folder.renamed`, `folder.deleted`, `document.upload_started`, `document.uploaded`, `document.reviewed`, `document.rejected`, `document.rescan_requested`, `document.downloaded`, `document.deleted` |
 | Automation | `automation.created`, `automation.updated`, `automation.deleted`, `automation.starter_installed` (each run has its own log, `AUTOMATION.md`) |
-| Platform | `platform.tenant_create`, `platform.tenant_status`, `platform.tenant_plan`, `platform.impersonation_start`, `platform.impersonation_stop` |
+| Platform | `platform.tenant_create`, `platform.tenant_status`, `platform.tenant_plan`, `platform.impersonation_start`, `platform.impersonation_stop`, `platform.admin_mfa_reset` (a super admin reset an agency admin's two-step verification), `platform.operator_mfa_reset` (written by hand when an operator resets a super admin, `RUNBOOK.md` §4.4) |
 
 Reads are not audited, with two deliberate exceptions: **downloads** (a signed link for a document or export is
 audited when it is issued, `DOCUMENTS.md`) and **impersonation** (start and stop). A super admin who reads an

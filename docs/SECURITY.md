@@ -49,6 +49,39 @@ stolen session cookie or a leaked password.
   - *Recovery codes:* ten one-time codes (about 50 bits each) shown once, stored only as keyed HMACs (a copy of the
     database cannot be used to guess them), usable for sign-in and for turning it off, replaced as a set on request.
   - The secret is encrypted at rest (AES-256-GCM, `ENCRYPTION_KEY`).
+  - *Lost phone and recovery codes (administrator reset):* the way back is a person, not a bypass. A workspace admin
+    uses Users → the person → **Reset two-step verification**; for an agency admin who has no other admin to ask (or
+    whose other admins are locked out too) a super admin uses the platform console → **Admins**. Rules, all enforced
+    in the service and tested:
+    - Policy `user:resetMfa` (workspace admin; a super admin only while acting inside the workspace) and
+      `tenant:resetAdminMfa` (super admin, from the console, agency admins only). Counselors and telecallers cannot.
+      Another workspace's people are "not found" (404), as everywhere.
+    - **Nobody resets themselves** (403, "ask another admin; if you are the only admin, contact aVn CMS support"), so a
+      stolen session cannot remove its own second factor, and the only admin of a workspace always has one route back:
+      the super admin.
+    - **The acting admin types their own password again** and a **reason** (5–300 characters). Five password checks per
+      admin per 15 minutes, right or wrong, then it refuses (429) until the window ends; the route itself allows 10 a
+      minute. A stolen session alone is not enough, and the form cannot be used to guess the password. (The session
+      itself has already passed the admin's second factor if they have one: the gate refuses it otherwise.)
+    - In **one transaction** (`resetMfaByAdmin`, packages/auth, owner client): the secret, replay step and pause
+      counters are cleared, every recovery code is deleted, **every session of the person is revoked** (including a
+      sign-in waiting for its code), and the audit row **`auth.mfa_reset_by_admin`** is written (who did it, which
+      person, why, how: `workspace` or `platform`, their role, whether they must enrol again, sessions revoked; never
+      a secret or password). A super admin acting from the console also writes `platform.admin_mfa_reset` to the
+      platform log. A reset that finds two-step verification already off, or loses a race with another admin, does
+      nothing and writes nothing (409).
+    - **The person is told:** a notification in the app (type `security.mfa_reset`) and, when email is set up, an email
+      saying who reset it, that every device was signed out, and to tell their admin if they did not ask. A super
+      admin is named "aVn CMS support". Without email the admin is told to let the person know themselves; nothing
+      claims an email went out.
+    - **Re-enrolment is forced** for a role in `MFA_REQUIRED_ROLES`: the person signs in with their password and can do
+      nothing but set it up again (the same gate as a new account). Other roles simply have it off and can turn it
+      back on.
+    - Residual risk: between the reset and the person enrolling again, whoever knows their password can sign in. The
+      admin is told to confirm identity out of band (a call or in person) first; if the phone may have been stolen,
+      also send a password reset and have them choose a new password straight away. Super-admin accounts themselves
+      are not covered here:
+      their reset is still the operator procedure in `RUNBOOK.md` §4.4.
 
 ### 2.2 The request gate (`apps/web/src/lib/api.ts`)
 
@@ -151,6 +184,7 @@ Each category is a test that runs in `pnpm test` (the file is named); a finding 
 | **Authentication** | uniform failures; paused account indistinguishable; lock-out; per-address limit; forged forwarding addresses; cross-site sign-in; new session per sign-in | `security-http.int.test.ts`, `auth.int.test.ts` |
 | **Session management** | revoked, expired, idle, disabled-user, suspended-workspace sessions; junk and oversized cookies; platform lifetime; device cap; clean-up | `security-http`, `mfa.int.test.ts` |
 | **MFA** | password to enrol; replay; pause after wrong codes; recovery codes (once, any spacing, hashed, regenerate, disable); required roles; sign-out of other devices | `mfa.int.test.ts`, `security-http`, `security.spec.ts` |
+| **MFA reset (lost phone and codes)** | allowed and forbidden roles; another workspace is 404; no self-reset; password again and its 5-try limit; reason; audit row (no secrets); every session revoked; the person notified; re-enrolment forced for required roles; two admins at once; super admin from the console (agency admins only) and while acting inside; nothing written when it is off or refused | `mfa-reset.int.test.ts`, `security-tenant`, `policy.test.ts`, `security.spec.ts` |
 | **CSRF / cross-site** | **every** state-changing route refuses: no token, wrong token, someone else's token, foreign `Origin`, `Sec-Fetch-Site: cross-site`, text/plain body | `security-http` (all routes, generated from the file system) |
 | **Authentication required** | **every** non-public route answers 401 with no session | `security-http` |
 | **RBAC** | every route against the policy matrix for admin, counselor, telecaller; platform routes for platform staff only; every matrix action is placed | `security-tenant.int.test.ts`, `policy.test.ts` |

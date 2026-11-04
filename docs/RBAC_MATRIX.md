@@ -48,6 +48,8 @@ Legend: ✅ full · 🟡 conditional (condition in cell) · ❌ none
 | **Users** – create/edit/disable | 🟡 platform | ✅ tenant | ❌ | ❌ |
 | **Users** – delete (with lead transfer) | 🟡 platform | ✅ tenant | ❌ | ❌ |
 | **Users** – reset another's password | 🟡 platform | ✅ tenant | ❌ | ❌ |
+| **Users** – reset another's two-step verification (`user:resetMfa`: lost authenticator and recovery codes) | 🟡 platform | ✅ tenant, never one's own | ❌ | ❌ |
+| **Agency admins** – reset two-step verification from the platform console (`tenant:resetAdminMfa`) | ✅ | ❌ | ❌ | ❌ |
 | **Own account** – edit profile / password / MFA | ✅ self | ✅ self | ✅ self | ✅ self |
 | **Students** – list | 🟡 platform | ✅ tenant | 🟡 own | 🟡 own (reduced fields) |
 | **Students** – view detail | 🟡 platform | ✅ tenant | 🟡 own | 🟡 own (reduced fields) |
@@ -101,7 +103,14 @@ Legend: ✅ full · 🟡 conditional (condition in cell) · ❌ none
    `tenant_id`, `assignee_id`, or `role_code` by adding fields to a request body — those
    fields aren't in the DTO.
 5. **Privilege changes are audited.** Role change, user disable, password reset,
-   impersonation start/stop → `audit_logs` with old/new.
+   impersonation start/stop → `audit_logs` with old/new. Resetting someone's two-step verification
+   (`auth.mfa_reset_by_admin`) records who did it, to whom and why.
+5a. **Resetting a second factor is the most sensitive person-to-person action, so it has extra rules.** Nobody resets
+   themselves (a stolen session cannot remove its own second factor); the acting admin types their own password again
+   and gives a reason; an admin reaches only their own workspace's people (anyone else is `404`); the only admin of a
+   workspace is reset by a super admin from the platform console, who may reset agency admins only (not counselors or
+   telecallers, whom the agency's own admins reset). A super admin inside a workspace (impersonation) is bound by the
+   same rules and is recorded with `impersonated_by`. See `SECURITY.md` §2.1.
 6. **Super Admin has no silent data access.** Reading tenant business data requires
    `actAsTenant(tenantId)` which (a) sets tenant context, (b) writes an audit row, (c)
    shows an "impersonating" banner. Platform analytics use pre-aggregated,

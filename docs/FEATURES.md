@@ -11,7 +11,7 @@
 | Multi-tenant workspaces | Tenant from the session; scoped data client; row-level security (R-01…R-03) | `ARCHITECTURE.md` §2 |
 | Four roles, server-enforced | Super Admin, Tenant Admin, Counselor, Telecaller; 37 actions; 404 for what is not yours (R-10, R-11) | `USER_ROLES.md`, `RBAC_MATRIX.md` |
 | Sign-in | Workspace + email + password, Argon2id, lock-out, password reset (R-06, R-07, R-09) | `SECURITY.md` §2.1 |
-| Two-step verification | Authenticator app, ten recovery codes, can be required per role (R-08) | `SECURITY.md` §2.1 |
+| Two-step verification | Authenticator app, ten recovery codes, can be required per role (R-08); an admin resets it for someone who lost both the phone and the codes (a super admin for an agency's only admin) | `SECURITY.md` §2.1 |
 | Sessions | 7 days, idle 48 h, device list, sign out others | `SECURITY.md` §2.1 |
 | Users | Invite, role, pause, reset password, transfer leads, delete; last-admin guard | `USER_ROLES.md` §3 |
 | Settings | Time zone, round-robin, uncontacted minutes, lead sources | `PAGES_AND_ROUTES.md` |
