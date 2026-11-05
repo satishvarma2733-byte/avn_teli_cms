@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { E2E_PASSWORD } from '../global-setup';
 
-import { expectAccessible } from './helpers';
+import { expectAccessible, pressSignIn } from './helpers';
 
 test.describe('sign-in', () => {
   test('wrong password is refused with a generic message; correct one lands on the dashboard', async ({
@@ -14,11 +14,11 @@ test.describe('sign-in', () => {
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('admin@demo.test');
     await page.getByLabel('Password').fill('not-the-password-1');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(page);
     await expect(page.getByText('The workspace, email or password is incorrect.')).toBeVisible();
 
     await page.getByLabel('Password').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(page);
     await expect(page).toHaveURL(/\/app\/dashboard$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Good to see you');
   });
@@ -28,7 +28,7 @@ test.describe('sign-in', () => {
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('telecaller2@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(page);
     await expect(page).toHaveURL(/\/app\/followups$/);
   });
 
@@ -59,7 +59,7 @@ test.describe('sign-out', () => {
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('counselor2@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(page);
     await expect(page).toHaveURL(/\/app\/dashboard$/);
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page).toHaveURL(/\/login/);

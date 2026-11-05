@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { as, expectAccessible } from './helpers';
+import { as, expectAccessible, pressSignIn } from './helpers';
 
 test.describe('admin manages users', () => {
   test.use(as('admin'));
@@ -34,7 +34,7 @@ test.describe('admin manages users', () => {
     await p.getByLabel('Workspace').fill('demo');
     await p.getByLabel('Email').fill('neha.new@demo.test');
     await p.getByLabel('Password').fill('Neha-Password-2026');
-    await p.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(p);
     await expect(p).toHaveURL(/\/app\/dashboard$/);
     await expect(
       p.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Users' }),

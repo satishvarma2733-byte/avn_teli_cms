@@ -4,7 +4,7 @@ import { hashPassword } from '../../../packages/auth/src/password';
 import { totpAt } from '../../../packages/auth/src/totp';
 import { createClient } from '../../../packages/db/src/testing';
 import { E2E_PASSWORD } from '../global-setup';
-import { as, expectAccessible, testPhone } from './helpers';
+import { as, expectAccessible, pressSignIn, testPhone } from './helpers';
 
 /**
  * Phase 9 in a real browser: the headers and CSP the pages really carry (and that nothing the app
@@ -31,7 +31,7 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByLabel('Workspace').fill('demo');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await pressSignIn(page);
 }
 
 async function signOut(page: Page) {
@@ -281,7 +281,7 @@ test.describe('signing in', () => {
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('counselor1@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(page);
     await expect(page).toHaveURL(/\/app\/dashboard$/);
     expect(new URL(page.url()).hostname).toBe('localhost');
   });
@@ -292,7 +292,7 @@ test.describe('signing in', () => {
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('counselor1@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await pressSignIn(page);
     await expect(page).toHaveURL(/\/app\/leads/);
   });
 });

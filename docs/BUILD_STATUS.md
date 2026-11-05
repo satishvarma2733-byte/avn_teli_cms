@@ -138,6 +138,18 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   the same millisecond. Round robin's "never picked, then oldest account" tie-break then had no answer, and the first
   lead could go to either. The round-robin queries now settle exact ties by `id`, the fixture makes each user strictly
   later than the last, and the routing test matches enquiries by name rather than by arrival order.
+- **Found and fixed (2026-11-05):** the first browser-test run on GitHub failed 3 of 50.
+  - **Sign-ins (2 tests):** every browser test signs in from 127.0.0.1, and the real limit is 10 sign-ins a minute
+    per address. The faster runner fit eleven into one minute, and the refused sign-in left the test on the sign-in
+    page. The tests now wait out a 429 (the server's `Retry-After`) and press Sign in again, as a person would. The
+    limit itself is unchanged.
+  - **Accessibility check (1 test):** Next streams a page's `<title>` after the body, and axe ran before it arrived.
+    The check now waits for the title.
+  - Browser-test failures now appear as GitHub annotations, which anyone can read; the job log needs a sign-in.
+- **Open (owner decision):** the sign-in limit is 10 a minute *per address*. An agency office where many people share
+  one public address and sign in at the start of a shift could be refused for up to a minute. It is a fixed number by
+  design: a code rule in `apps/web/src/security.test.ts` keeps every sign-in route's limit small and literal.
+  `IMPROVEMENT_ROADMAP.md` #11a.
 - `prisma migrate dev` hangs in this non-interactive environment; migrations here are applied with `prisma migrate deploy` and checked with `prisma migrate diff` (the only differences left are the two unmodelled indexes, `users_tenant_email_key` and the covering index `lead_status_history_funnel_idx`; never let a generated migration drop them).
 - Source ROI shows conversion only: ad spend isn't recorded.
 - **Found and fixed (2026-10-16):** the first test of the imports/exports queue against real Redis
