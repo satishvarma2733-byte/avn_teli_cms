@@ -51,7 +51,7 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Plans, limits and usage metering | Verified | `plans.limits` (users, leads, storage) enforced where things are added; website enquiries never refused; hourly monthly snapshot into `usage_counters`; Settings usage card; platform plan change refused when over the new limits. No payments. `SCALABILITY.md` §7 |
 | Scale (1M leads) | Verified (laptop) | Search via `search_student_ids`, "1,000+" totals, dashboard and report answers cached for a minute (`REPORT_CACHE_SECONDS`), covering indexes. `SCALABILITY.md` |
 | Observability and operations | Verified | `X-Request-Id` on every API answer, JSON access/error logs, `instrumentation.ts` render errors, worker heartbeat, `/api/health` with `worker`, `/api/metrics` (Prometheus), restore drill, runbook. `RUNBOOK.md` |
-| CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | **Failing on GitHub until the 2026-11-04 fixes** (not yet pushed) | `.github/workflows` have run on every push since phase 9. CI stopped at the type check every time, so its tests never ran there; the security scan failed its secret and dependency checks. Fixed locally: see Known issues. Confirm on the next push |
+| CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | **Verified on GitHub** (2026-11-05) | CI #28 on `de6178e` passed every step on ubuntu-latest: lint, formatting, types, services, unit, integration and all 50 browser tests; Security #31 passed. Until then every run since phase 9 had failed (see Known issues). Browser-test failures show as annotations |
 
 ## Tests (actual results, 2026-11-04, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5)
 
@@ -115,7 +115,7 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 - Notifications are in-app only (no email or push), and the navigation badge is checked every minute rather than pushed.
 - **Set `TRUSTED_PROXY_HOPS` on the real host.** The default (0) ignores `X-Forwarded-For`, which is safe but, behind a load balancer, counts every caller as one address (sign-in is then limited to 10 a minute for the whole site). Set it to the number of proxies in front of the app.
 - Two-step verification is optional unless `MFA_REQUIRED_ROLES` is set (recommended in production: `SUPER_ADMIN,TENANT_ADMIN`). A role that is required but has not enrolled can only set it up and sign out.
-- **Found and fixed (2026-11-04, not yet pushed): CI had never passed on GitHub.**
+- **Found and fixed (2026-11-04; green on GitHub 2026-11-05): CI had never passed on GitHub.**
   - Every run since phase 9 failed at **Types**, so no unit, integration or browser test ever ran there. A fresh checkout
     has no `.next/`, and `tsc` could not find the route types (`PageProps`) that only `next dev`/`next build` write. The
     web `typecheck` now runs `next typegen` first, and passes on a fresh clone.
@@ -174,7 +174,7 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 ## Decisions requiring approval
 
 1. **Repository:** `main` is pushed to https://github.com/satishvarma2733-byte/avn_teli_cms
-   (2026-10-16, repo-local identity `opsewings`). CI and security scans run on every push. They failed until the 2026-11-04 fixes, which are not yet pushed. Enable **private vulnerability reporting** and branch protection (require CI) in the repository settings; Dependabot already opens pull requests.
+   (2026-10-16, repo-local identity `opsewings`). CI and security scans run on every push and pass since 2026-11-05 (CI #28, Security #31). Enable **private vulnerability reporting** and branch protection (require CI) in the repository settings; Dependabot already opens pull requests.
 2. **Hosting target** for staging and production (Node server + Postgres + Redis).
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
 4. **Cloudflare R2 for staging/production:** create the bucket and an Object Read & Write token, set its CORS rules, and provide a private ClamAV host (`DOCUMENTS.md` §9–10); you will connect them later through `.env`.
