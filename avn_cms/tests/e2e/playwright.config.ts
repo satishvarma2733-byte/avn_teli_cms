@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type ReporterDescription } from '@playwright/test';
 
 /**
  * End-to-end: the production build (`next start`) against the *_test database, freshly
@@ -34,6 +34,9 @@ const serverEnv: Record<string, string> = {
   R2_BUCKET: process.env['TEST_R2_BUCKET'] ?? process.env['R2_BUCKET'] ?? '',
 };
 
+// On GitHub each failure also becomes an annotation, which can be read without signing in (the log cannot).
+const githubAnnotations: ReporterDescription[] = process.env['GITHUB_ACTIONS'] ? [['github']] : [];
+
 export default defineConfig({
   testDir: './specs',
   fullyParallel: false,
@@ -41,7 +44,11 @@ export default defineConfig({
   retries: 0,
   timeout: 45_000,
   expect: { timeout: 10_000 },
-  reporter: [['list'], ['html', { open: 'never', outputFolder: '../../playwright-report' }]],
+  reporter: [
+    ...githubAnnotations,
+    ['list'],
+    ['html', { open: 'never', outputFolder: '../../playwright-report' }],
+  ],
   outputDir: '../../test-results',
   globalSetup: './global-setup.ts',
   use: {

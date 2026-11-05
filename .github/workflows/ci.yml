@@ -66,8 +66,21 @@ jobs:
 
       - name: Browser tests
         run: |
+          set -o pipefail # a failure must not be hidden behind tee's success
           pnpm exec playwright install --with-deps chromium
-          pnpm test:e2e
+          pnpm test:e2e 2>&1 | tee e2e.log
+
+      # The job log can only be read when signed in to GitHub; annotations can be read by anyone. So when
+      # the browser tests fail (including the build and the server start before them), the end of their
+      # output is also put into annotations.
+      - name: Explain a browser-test failure
+        if: failure() && hashFiles('avn_cms/e2e.log') != ''
+        run: |
+          tail -n 120 e2e.log | sed 's/\x1b\[[0-9;]*m//g' | split -l 30 - e2e-tail-
+          for part in e2e-tail-*; do
+            msg=$(sed -e 's/%/%25/g' -e 's/\r//g' "$part" | awk 'BEGIN { ORS = "%0A" } { print }')
+            echo "::error title=Browser tests output (part ${part##*-})::${msg}"
+          done
 
       - name: Keep the browser report when something failed
         if: failure()
