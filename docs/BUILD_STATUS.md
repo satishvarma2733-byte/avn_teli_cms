@@ -133,6 +133,11 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   publishes any image (`minio/minio` on Docker Hub needs authentication, and Quay, which CI used, has no tags left), so
   no new machine could start the stack. The stack now uses Chainguard's build of MinIO (`cgr.dev/chainguard/minio`),
   running as root so existing data volumes keep working. The documents tests pass against it (`DOCUMENTS.md` §11).
+- **Found and fixed (2026-11-04):** the first integration run on GitHub failed 3 automation tests, all for one reason.
+  Prisma stamps `created_at` to the millisecond, and on the faster runner the test fixture made both counselors within
+  the same millisecond. Round robin's "never picked, then oldest account" tie-break then had no answer, and the first
+  lead could go to either. The round-robin queries now settle exact ties by `id`, the fixture makes each user strictly
+  later than the last, and the routing test matches enquiries by name rather than by arrival order.
 - `prisma migrate dev` hangs in this non-interactive environment; migrations here are applied with `prisma migrate deploy` and checked with `prisma migrate diff` (the only differences left are the two unmodelled indexes, `users_tenant_email_key` and the covering index `lead_status_history_funnel_idx`; never let a generated migration drop them).
 - Source ROI shows conversion only: ad spend isn't recorded.
 - **Found and fixed (2026-10-16):** the first test of the imports/exports queue against real Redis

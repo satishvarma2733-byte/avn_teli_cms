@@ -273,7 +273,8 @@ interface Counts {
 async function roundRobinPool(db: TenantDb): Promise<string[]> {
   const rows = await db.user.findMany({
     where: { status: 'ACTIVE', deletedAt: null, roleCode: 'COUNSELOR' },
-    orderBy: [{ lastRoundRobinAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
+    // Same order as assignments' pickRoundRobin, `id` settling exact ties.
+    orderBy: [{ lastRoundRobinAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }, { id: 'asc' }],
     select: { id: true },
   });
   return rows.map((r) => r.id);

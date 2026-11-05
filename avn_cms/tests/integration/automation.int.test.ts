@@ -286,12 +286,13 @@ describe('automation', () => {
     it('routes it in turn, tells the counselor, and only they see it', async () => {
       const first = await ingest({ name: 'First Enquiry' });
       const second = await ingest({ name: 'Second Enquiry' });
-      const rows = await ownerDb().webLead.findMany({
-        where: { tenantId: tenant.id },
-        orderBy: { createdAt: 'asc' },
+      const rows = await ownerDb().webLead.findMany({ where: { tenantId: tenant.id } });
+      // Round robin: least recently picked first, so the two counselors alternate. Matched by name, not
+      // by created_at order: two enquiries can arrive within the same millisecond.
+      expect(Object.fromEntries(rows.map((r) => [r.name, r.routedToId]))).toEqual({
+        'First Enquiry': c1.id,
+        'Second Enquiry': c2.id,
       });
-      // Round robin: least recently picked first, so the two counselors alternate.
-      expect(rows.map((r) => r.routedToId)).toEqual([c1.id, c2.id]);
       expect(rows.every((r) => r.routedAt)).toBe(true);
 
       const all = await runs();

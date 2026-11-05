@@ -68,7 +68,9 @@ export async function setAssignment(
 }
 
 /**
- * Round-robin: the active user of the role who was picked longest ago (never-picked first).
+ * Round-robin: the active user of the role who was picked longest ago (never-picked first, then the
+ * oldest account). `id` settles exact ties: created_at is set to the millisecond, so two accounts can
+ * share it, and the pick must not depend on the query plan.
  * Row lock + SKIP LOCKED so concurrent intakes don't pick the same person twice.
  */
 export async function pickRoundRobin(db: TenantDb, fn: RoleFunction): Promise<string | null> {
@@ -77,7 +79,7 @@ export async function pickRoundRobin(db: TenantDb, fn: RoleFunction): Promise<st
     SELECT id FROM users
     WHERE tenant_id = app_tenant_id() AND status = 'ACTIVE' AND deleted_at IS NULL
       AND role_code::text = ANY(${roles})
-    ORDER BY last_round_robin_at ASC NULLS FIRST, created_at ASC
+    ORDER BY last_round_robin_at ASC NULLS FIRST, created_at ASC, id ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED`;
   const id = rows[0]?.id ?? null;

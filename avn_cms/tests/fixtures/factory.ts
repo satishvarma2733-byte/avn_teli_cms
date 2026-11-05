@@ -32,6 +32,12 @@ export async function makeTenant(
   return tenant;
 }
 
+// Prisma stamps created_at to the millisecond, and with the hash cached two users can be made within
+// one. Each user is made strictly later than the one before, so "made first" means "older" (round
+// robin's tie-break) on any machine, however fast.
+let lastUserCreatedAt = 0;
+const nextUserCreatedAt = () => new Date((lastUserCreatedAt = Math.max(Date.now(), lastUserCreatedAt + 1)));
+
 export async function makeUser(tenantId: string | null, roleCode: RoleCode, email?: string) {
   return ownerDb().user.create({
     data: {
@@ -40,6 +46,7 @@ export async function makeUser(tenantId: string | null, roleCode: RoleCode, emai
       name: `${roleCode.toLowerCase()} user`,
       email: email ?? `${roleCode.toLowerCase()}-${randomUUID().slice(0, 6)}@example.test`,
       passwordHash: await passwordHash(),
+      createdAt: nextUserCreatedAt(),
     },
   });
 }
