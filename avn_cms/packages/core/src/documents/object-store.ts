@@ -63,7 +63,15 @@ function storageDown(what: string, err: unknown): never {
   throw unavailable('Document storage did not answer. Try again in a moment.');
 }
 
-function makeClient(cfg: ObjectStorageConfig): S3Client {
+/**
+ * The SDK waits for ever by default, so a storage server that stops answering would hold an upload's
+ * confirmation (the person waiting) or a scan job. Each attempt now gives up: on connecting, on the answer
+ * starting (as an error, not only a warning), and on a download that goes silent. A large file streams
+ * for as long as bytes keep coming. The SDK still retries, so a passing hiccup is not reported.
+ */
+export const STORAGE_TIMEOUTS = { connectMs: 5_000, answerMs: 15_000, idleMs: 30_000 };
+
+function makeClient(cfg: ObjectStorageConfig, timeouts = STORAGE_TIMEOUTS): S3Client {
   return new S3Client({
     region: cfg.region,
     endpoint: cfg.endpoint,
@@ -73,11 +81,20 @@ function makeClient(cfg: ObjectStorageConfig): S3Client {
     // Newer SDKs add CRC checksums to every request; R2 does not accept them on presigned uploads.
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
+    requestHandler: {
+      connectionTimeout: timeouts.connectMs,
+      requestTimeout: timeouts.answerMs,
+      throwOnRequestTimeout: true,
+      socketTimeout: timeouts.idleMs,
+    },
   });
 }
 
-export function createObjectStore(cfg: ObjectStorageConfig): ObjectStore {
-  const client = makeClient(cfg);
+export function createObjectStore(
+  cfg: ObjectStorageConfig,
+  timeouts: typeof STORAGE_TIMEOUTS = STORAGE_TIMEOUTS,
+): ObjectStore {
+  const client = makeClient(cfg, timeouts);
   const Bucket = cfg.bucket;
   return {
     bucket: Bucket,

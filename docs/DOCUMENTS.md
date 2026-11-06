@@ -244,7 +244,9 @@ the old image did, so a data volume the old image created keeps working. To use 
 | GET | `/api/students/:id/documents` | The checklist and other documents |
 | PATCH | `/api/students/:id/documents/:docType` | `{ status: UPLOADED \| VERIFIED \| REJECTED, note? }` |
 
-Storage not set up answers **503** with a plain message. Audit actions: `folder.created`,
+Storage not set up answers **503** with a plain message. So does storage that does not answer. Each call gives up after
+5 s connecting, 15 s waiting for the answer to start, or 30 s of silence while a file streams (`STORAGE_TIMEOUTS` in
+`object-store.ts`), and the SDK tries three times. A large file streams for as long as bytes keep coming. Audit actions: `folder.created`,
 `folder.renamed`, `folder.deleted`, `document.upload_started`, `document.uploaded`,
 `document.scanned`, `document.rejected`, `document.downloaded`, `document.deleted`,
 `document.reviewed`, `document.rescan_requested`.

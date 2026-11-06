@@ -53,7 +53,7 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Observability and operations | Verified | `X-Request-Id` on every API answer, JSON access/error logs, `instrumentation.ts` render errors, worker heartbeat, `/api/health` with `worker`, `/api/metrics` (Prometheus), restore drill, runbook. `RUNBOOK.md` |
 | CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | **Verified on GitHub** (2026-11-05) | CI #28 on `de6178e` passed every step on ubuntu-latest: lint, formatting, types, services, unit, integration and all 50 browser tests; Security #31 passed. Until then every run since phase 9 had failed (see Known issues). Browser-test failures show as annotations |
 
-## Tests (actual results, 2026-11-04, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5)
+## Tests (actual results, 2026-11-06, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5; the same suites pass on GitHub CI)
 
 | Suite | Command | Result |
 |---|---|---|
@@ -61,7 +61,7 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
 | Unit | `pnpm test:unit` | **293 passed** (the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
-| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **250 passed in 25 files** (Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **252 passed in 26 files** (time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
 | End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **50 passed** (sign-in, automation, leads, RBAC, security headers/CSP/XSS/redirects/two-step verification, users, web-leads intake, import wizard incl. a cut-off import and start over, exports, documents; Phase 10 added plan and usage, including a platform plan change, and a telecaller working the call queue) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
@@ -138,6 +138,13 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   the same millisecond. Round robin's "never picked, then oldest account" tie-break then had no answer, and the first
   lead could go to either. The round-robin queries now settle exact ties by `id`, the fixture makes each user strictly
   later than the last, and the routing test matches enquiries by name rather than by arrival order.
+- **Found and fixed (2026-11-06):** email and document storage had no time limit on a server that stops answering.
+  Mail is sent while the person waits (invitations, reset notices), and nodemailer's defaults allow 2 minutes to
+  connect, 30 seconds for the greeting and 10 minutes of silence. The storage SDK waits for ever, which held upload
+  confirmations and scan jobs. Mail now gives up after 10 s (20 s idle) and reports "not sent". Storage gives up after
+  5 s connecting, 15 s for the answer or 30 s idle, with the SDK's retries, and answers 503.
+  `external-timeouts.int.test.ts` proves both against a server that accepts and then says nothing; without the limits,
+  both tests hang.
 - **Found and fixed (2026-11-05):** the first browser-test run on GitHub failed 3 of 50.
   - **Sign-ins (2 tests):** every browser test signs in from 127.0.0.1, and the real limit is 10 sign-ins a minute
     per address. The faster runner fit eleven into one minute, and the refused sign-in left the test on the sign-in

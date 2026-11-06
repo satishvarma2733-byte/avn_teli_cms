@@ -7,6 +7,13 @@ import nodemailer, { type Transporter } from 'nodemailer';
  */
 let transporter: Transporter | null | undefined;
 
+/**
+ * Mail is sent while the person waits (an invitation, a reset notice), so a mail server that does not
+ * answer must not hold the request: nodemailer's own limits are 2 minutes to connect, 30 seconds for the
+ * greeting and 10 minutes of silence. The message is then reported as not sent, and the screen says so.
+ */
+export const SMTP_TIMEOUTS = { connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000 };
+
 function transport(): Transporter | null {
   if (transporter !== undefined) return transporter;
   const c = getConfig();
@@ -16,6 +23,7 @@ function transport(): Transporter | null {
     port: c.SMTP_PORT,
     secure: c.SMTP_PORT === 465,
     ...(c.SMTP_USER ? { auth: { user: c.SMTP_USER, pass: c.SMTP_PASS ?? '' } } : {}),
+    ...SMTP_TIMEOUTS,
   });
   return transporter;
 }
