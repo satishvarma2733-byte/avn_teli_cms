@@ -84,12 +84,17 @@ const fmtBytes = (b: number) =>
 /**
  * Refuses (409, code `PLAN_LIMIT`) when adding `adding` more of something would pass the plan's limit.
  * Does nothing, and costs nothing, for a workspace whose plan has no limit on it. Only measures what the
- * limit is about, so the common case (no limit) is a single small read.
+ * limit is about, so the common case (no limit) is a single small read. The caller must add the thing in
+ * the same transaction: that is what the lock below relies on.
  */
 export async function assertRoom(db: TenantDb, metered: Metered, adding = 1): Promise<void> {
   const plan = await planOf(db);
   const limit = plan?.limits[WHAT[metered].limit];
   if (!plan || limit === null || limit === undefined) return;
+  // Requests adding at the same moment would all count the same total and all pass. This workspace's
+  // lock for the metered thing is held until the caller's transaction ends (the caller adds in the same
+  // transaction), so the next request counts only after the previous one's row is in.
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`plan-room:${metered}:`}::text || app_tenant_id()::text, 0))`;
   const used =
     metered === 'users'
       ? await db.user.count({ where: { deletedAt: null, status: 'ACTIVE' } })

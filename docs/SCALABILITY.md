@@ -190,6 +190,13 @@ an import (checked against the rows it would add, before it starts); starting a 
 with `details.code = "PLAN_LIMIT"` and a message that says which limit and what to do. **Website enquiries are never
 refused** (they land in the inbox; only converting them counts), and nothing already saved is ever removed or hidden.
 
+**Requests at the same moment** cannot pass a limit together. The check holds a lock for the workspace and the
+limit (`pg_advisory_xact_lock`) until the request's own insert commits, so the next request counts after the first
+one's row is in. Without it, six "add user" requests on a plan with one seat left all succeeded
+(`usage.int.test.ts`). The lock is taken only when the plan limits that thing. **Imports** are the exception: they
+are checked when started, but the rows arrive later from the worker. Two imports started together, or students added
+while an import runs, can still go past the limit by up to the import's size.
+
 **Measuring.** `usage.getUsage` counts from the workspace's own rows (active users, undeleted leads, stored document
 bytes, automation runs this month) and powers Settings → Plan and usage (`GET /api/usage`, admins). The worker writes
 the same figures hourly into `usage_counters (tenant, metric, period)`, one row per metric and month, updated in

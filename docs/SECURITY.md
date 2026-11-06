@@ -203,7 +203,8 @@ Each category is a test that runs in `pnpm test` (the file is named); a finding 
 | **Injection** | SQL meta-characters, `%`, wrong types and operators-as-objects in search, filters, cursors, ids and bodies: 4xx, never 5xx, nothing leaked, tables intact | `security-tenant` |
 | **XSS** | markup in a student name, web lead, notification, rule name and run log is shown as text; no script runs, no element appears | `security.spec.ts` |
 | **Mass assignment** | extra fields (`tenantId`, `createdById`, `role: SUPER_ADMIN`, `starterKey`, `deletedAt`) are ignored or refused | `security-http` |
-| **Upload** | type allow-list, first-bytes check, signed type and size, infected file never downloadable, counselor scope | `documents.int.test.ts`, `documents.spec.ts` |
+| **Upload** | type allow-list, first-bytes check, signed type and size, infected file never downloadable, counselor scope; `.xlsx` imports measured by really unpacking them (300 MB, 1,000 parts) before parsing, and declared sizes that lie do not help | `documents.int.test.ts`, `documents.spec.ts`, `zip-limits.test.ts` |
+| **Limits under parallel requests** | requests sent at the same moment cannot pass a plan limit together (users, leads) | `usage.int.test.ts` |
 | **Export / import** | formula injection neutralised; role-limited columns; signed per-user links; expiry | `exports.int.test.ts`, `imports.int.test.ts` |
 | **Information leak** | no stack, query, file path or library name in any answer, on every route, with hostile ids | `security-http` |
 | **Rate limiting** | sign-in, anonymous flood, per route; forged addresses; no proxy | `security-http` |
@@ -237,6 +238,8 @@ found by this review and is fixed and covered by a test.
 | 15 | P3 | No CI: no automatic dependency, secret or static-analysis scan | `.github/workflows`, Dependabot, gitleaks config |
 | 16 | P1 | (2026-11-04, found by the scheduled CI scan) Next.js 16.3.8 had two critical remote-code-execution advisories; 16 advisories in all | Upgrades and one recorded acceptance (§2.6) |
 | 17 | P3 | (2026-11-04) CI had never passed: `tsc` on a fresh checkout lacked the route types that only `next dev`/`build` write, and two made-up test passwords tripped the secret scan | `next typegen` before `tsc`; the two values allow-listed by exact text |
+| 18 | P2 | (2026-11-06) An `.xlsx` import is a zip archive and ExcelJS unpacked all of it in memory before any limit was checked: a 20 MB "zip bomb" could unpack to gigabytes and take the web server down (workspace admins only) | The archive is measured first by really unpacking it, counting not keeping: 300 MB and 1,000 parts at most, whatever sizes it declares (`imports/zip-limits.ts`) |
+| 19 | P3 | (2026-11-06) Plan limits were counted, then added to, without a lock: six requests sent together on a plan with one seat left all succeeded | A per-workspace lock held until the insert commits (`usage.assertRoom`); imports are still checked only when they start (`SCALABILITY.md` §7) |
 
 ## 5. Settings that matter (see `DEPLOYMENT.md` §2)
 

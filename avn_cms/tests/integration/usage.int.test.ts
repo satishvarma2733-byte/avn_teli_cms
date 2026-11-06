@@ -276,6 +276,43 @@ describe('plans and usage', () => {
     });
   });
 
+  describe('requests sent at the same moment', () => {
+    // Without a lock each request counts the same total, sees room, and adds: the limit is passed by
+    // everyone who arrived together.
+    it('cannot add more users than the plan allows', async () => {
+      await putOnPlan('STARTER'); // 3 active users; the admin and the counselor are 2
+      const results = await Promise.all(
+        Array.from({ length: 6 }, (_, i) =>
+          code(
+            users.createUser(ctxFor(admin), {
+              name: `Rush ${i}`,
+              email: `rush-${i}@plans.test`,
+              role: 'TELECALLER',
+            }),
+          ),
+        ),
+      );
+      expect(results.filter((r) => r === 'OK')).toHaveLength(1);
+      expect(results.filter((r) => r === 'PLAN_LIMIT')).toHaveLength(5);
+      expect(
+        await ownerDb().user.count({ where: { tenantId: tenant.id, status: 'ACTIVE', deletedAt: null } }),
+      ).toBe(3);
+    });
+
+    it('cannot add more leads than the plan allows', async () => {
+      await putOnPlan('STARTER'); // 3 leads, none yet
+      const source = await sourceId();
+      const results = await Promise.all(
+        Array.from({ length: 8 }, (_, i) =>
+          code(leads.createStudent(ctxFor(admin), { ...student(20 + i), sourceId: source })),
+        ),
+      );
+      expect(results.filter((r) => r === 'OK')).toHaveLength(3);
+      expect(results.filter((r) => r === 'PLAN_LIMIT')).toHaveLength(5);
+      expect(await ownerDb().lead.count({ where: { tenantId: tenant.id, deletedAt: null } })).toBe(3);
+    });
+  });
+
   describe('moving an agency to another plan (platform)', () => {
     it('is refused when the agency is over what the new plan allows, and allowed when it fits', async () => {
       const root = await makeUser(null, 'SUPER_ADMIN', 'root@platform.test');

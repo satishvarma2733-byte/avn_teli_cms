@@ -2,6 +2,7 @@ import { parse } from 'csv-parse/sync';
 import ExcelJS from 'exceljs';
 
 import { invalid } from '../shared/errors';
+import { MAX_UNZIPPED_BYTES, measureZip, ZipTooLarge } from './zip-limits';
 
 /** Limits that keep an import a bounded background job. */
 export const MAX_ROWS = 100_000;
@@ -80,6 +81,16 @@ function cellText(v: ExcelJS.CellValue): string {
 }
 
 export async function parseXlsx(buf: Buffer): Promise<ParsedSheet> {
+  // Measured before ExcelJS unpacks it into memory: a zip bomb must not get that far.
+  try {
+    await measureZip(buf);
+  } catch (err) {
+    if (err instanceof ZipTooLarge)
+      throw invalid(
+        `This Excel file unpacks to more than ${MAX_UNZIPPED_BYTES / 1024 ** 2} MB, far more than a sheet within the import limits needs. Save it as CSV and upload that instead.`,
+      );
+    throw invalid('The Excel file could not be read. Save it as .xlsx and retry.');
+  }
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(buf as unknown as ArrayBuffer);

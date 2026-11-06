@@ -64,6 +64,7 @@ import is started, it goes back from `QUEUED` to `VALIDATED` (§7).
 |---|---|
 | Formats | `.csv` (UTF-8, or Windows "CSV (MS-DOS)" as a fallback) and `.xlsx` (first sheet) |
 | Size | 20 MB |
+| Unpacked size (`.xlsx`) | 300 MB and 1,000 parts: an `.xlsx` is a zip archive. It is measured by really unpacking it, counting rather than keeping, before the sheet is read, so a "zip bomb" is refused and never reaches the parser. Real workbooks are a few dozen parts |
 | Rows | 100,000 per file (split larger files) |
 | Columns | 80 |
 | Cell length | 5,000 characters (longer text is cut) |

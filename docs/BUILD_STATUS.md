@@ -60,8 +60,8 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Lint (incl. architecture import boundaries) | `pnpm lint` | pass, 0 warnings |
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
-| Unit | `pnpm test:unit` | **293 passed** (the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
-| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **252 passed in 26 files** (time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
+| Unit | `pnpm test:unit` | **301 passed** (zip-bomb limits for .xlsx imports; the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **254 passed in 26 files** (plan limits under parallel requests; time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
 | End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **50 passed** (sign-in, automation, leads, RBAC, security headers/CSP/XSS/redirects/two-step verification, users, web-leads intake, import wizard incl. a cut-off import and start over, exports, documents; Phase 10 added plan and usage, including a platform plan change, and a telecaller working the call queue) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
@@ -138,6 +138,14 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   the same millisecond. Round robin's "never picked, then oldest account" tie-break then had no answer, and the first
   lead could go to either. The round-robin queries now settle exact ties by `id`, the fixture makes each user strictly
   later than the last, and the routing test matches enquiries by name rather than by arrival order.
+- **Found and fixed (2026-11-06), two abuse gaps:**
+  - **Zip-bomb imports.** An `.xlsx` is a zip archive, and ExcelJS unpacked all of it in memory before the row limit
+    was checked, so a small crafted file could exhaust the server's memory (workspace admins only). The archive is now
+    measured first by really unpacking it, counting not keeping: 300 MB and 1,000 parts at most. Sizes the archive
+    declares can lie, so they are not trusted. All 7 Excel-written templates on this machine pass.
+  - **Plan limits under parallel requests.** Six "add user" requests sent together on a plan with one seat left all
+    succeeded, because each one counted before any had added. A per-workspace lock now holds from the check until the
+    insert commits; the test fails without it. Imports are still checked only when they start (`SCALABILITY.md` §7).
 - **Found and fixed (2026-11-06):** email and document storage had no time limit on a server that stops answering.
   Mail is sent while the person waits (invitations, reset notices), and nodemailer's defaults allow 2 minutes to
   connect, 30 seconds for the greeting and 10 minutes of silence. The storage SDK waits for ever, which held upload
