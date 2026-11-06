@@ -160,6 +160,9 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
     limit itself is unchanged.
   - **Accessibility check (1 test):** Next streams a page's `<title>` after the body, and axe ran before it arrived.
     The check now waits for the title.
+  - **Wrong-code alert (2026-11-06, CI #31):** after a client-side navigation Next.js adds a `role="alert"` of its own
+    (the route announcer for screen readers), so `getByRole('alert')` sometimes matched two elements. The two-step
+    test now looks only for the app's own alert.
   - Browser-test failures now appear as GitHub annotations, which anyone can read; the job log needs a sign-in.
 - **Open (owner decision):** the sign-in limit is 10 a minute *per address*. An agency office where many people share
   one public address and sign in at the start of a shift could be refused for up to a minute. It is a fixed number by

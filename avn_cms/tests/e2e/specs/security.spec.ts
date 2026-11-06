@@ -393,10 +393,13 @@ test.describe('two-step verification', () => {
 
     // Wrong codes in a row pause the checks.
     await page.getByRole('button', { name: 'Use the code from my app instead' }).click();
+    // Our own alert. After a client-side navigation Next.js adds a role="alert" of its own (the route
+    // announcer, for screen readers), so getByRole('alert') could match two.
+    const alert = page.locator('[role="alert"]:not(#__next-route-announcer__)');
     for (let i = 0; i < 4; i++) {
       await page.getByLabel('Verification code').fill(`11111${i}`);
       await page.getByRole('button', { name: 'Verify' }).click();
-      await expect(page.getByRole('alert')).toBeVisible();
+      await expect(alert).toBeVisible();
     }
     await expect(page.getByText('Too many wrong codes')).toBeVisible();
   });
