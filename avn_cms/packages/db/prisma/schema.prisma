@@ -444,6 +444,9 @@ model Lead {
   nextCallAt      DateTime?  @map("next_call_at") @db.Timestamptz(6)
   lastContactedAt DateTime?  @map("last_contacted_at") @db.Timestamptz(6)
   lostReason      String?    @map("lost_reason")
+  /// Has an active counselor assignment. Kept by a database trigger on lead_assignments (migration
+  /// lead_has_counselor), never written by the application; the "Unassigned" view reads it.
+  hasCounselor    Boolean    @default(false) @map("has_counselor")
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)

@@ -17,7 +17,7 @@
 | Result at 7× that pace (one action every 0.7 s: 72 requests a second, one web server) | 0 errors; p50 1.2 s, p95 2.6 s: **one Node server is CPU-bound at about 70 requests a second** (§5.2) |
 | Scaling out | Three web servers on the same machine: **117 requests a second (1.6×), p50 454 ms, p95 1.4 s, 0 errors** — the limit moved to the machine itself (§5.2) |
 | Biggest wins from the test | Search 3.5–6 s → 15–200 ms; state filter 1.4 s → 27 ms; list totals 1 s → ≤ 190 ms; dashboard 21 s (timed out) → 2.5 s cold and instant cached (§4) |
-| Open | "Unassigned" view when nothing is unassigned still scans all leads (2.4 s); first view of a report after a quiet spell takes 1–2.5 s (§8) |
+| Open | First view of a report after a quiet spell takes 1–2.5 s (§8). Fixed 2026-11-07: the "Unassigned" view with nothing unassigned (3.5 s → 0.05 ms) |
 
 ## 2. Targets
 
@@ -209,7 +209,7 @@ quotas for automation runs or messages (`automation_runs` is measured but not li
 
 | Limit | Effect | Next |
 |---|---|---|
-| "Unassigned" view when nothing is unassigned | Walks every lead (2.4 s at 1M) | Maintain a flag or partial index for leads with no active counselor (P2) |
+| "Unassigned" view when nothing is unassigned | **Fixed 2026-11-07.** Walked every lead and looked up each one's assignments: 3,461 ms at 1,000,508 leads (EXPLAIN ANALYZE as the app role). Now 0.047 ms | `leads.has_counselor`, kept by a statement-level trigger on `lead_assignments`, read through the partial index `leads_unassigned_idx` (an index-only scan). The migration backfilled 1.2M leads in 48 s |
 | A one-word search that matches thousands | 50–215 ms for admins, ~300 ms for a counselor; the total says "1,000+" | Fine; a search engine only if patterns outgrow contains-matching |
 | First view of a report after a quiet spell | 1–2.5 s once, then cached | Daily roll-ups (P2); invalidate on write (P2) |
 | State and district filters rely on a planner workaround | Fast now | Normalise stored values and use a lower-case index (P2) |

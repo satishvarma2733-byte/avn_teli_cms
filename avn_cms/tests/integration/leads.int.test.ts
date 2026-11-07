@@ -209,6 +209,67 @@ describe('students & leads', () => {
     expect(await ownerDb().leadAssignment.count({ where: { leadId: a.lead.id, isActive: false } })).toBe(1);
   });
 
+  it('the Unassigned view follows every way a counselor is given or taken away', async () => {
+    // The view reads a flag the database keeps from the assignments (migration lead_has_counselor).
+    const db = ownerDb();
+    const flag = async (leadId: string) =>
+      (await db.lead.findUniqueOrThrow({ where: { id: leadId } })).hasCounselor;
+    const unassigned = async () =>
+      (
+        await leads.listLeads(ctxFor(admin), { view: 'unassigned', sort: 'newest', limit: 50 } as never)
+      ).items.map((i: { id: string }) => i.id);
+
+    // Assigned through the owner client (the fixture) and through the service (a workspace transaction).
+    const bare = await makeLead(tenant.id);
+    const fixtureAssigned = await makeLead(tenant.id, { counselorId: counselor.id });
+    const viaService = await leads.createStudent(ctxFor(admin), {
+      name: 'Flag Service',
+      phone: '9812345601',
+      sourceId: websiteSource.id,
+      counselorId: counselor.id,
+    });
+    // A telecaller is not a counselor.
+    const telecallerOnly = await leads.createStudent(ctxFor(admin), {
+      name: 'Flag Telecaller',
+      phone: '9812345602',
+      sourceId: websiteSource.id,
+      telecallerId: telecaller.id,
+    });
+    expect(await flag(bare.lead.id)).toBe(false);
+    expect(await flag(fixtureAssigned.lead.id)).toBe(true);
+    expect(await flag(viaService.leadId)).toBe(true);
+    expect(await flag(telecallerOnly.leadId)).toBe(false);
+    expect((await unassigned()).sort()).toEqual([bare.lead.id, telecallerOnly.leadId].sort());
+
+    // Taken away, given back, moved to someone else in bulk: one transaction ends the old assignment
+    // and starts the new one, and the flag never flickers off.
+    await leads.updateLead(ctxFor(admin), viaService.leadId, { counselorId: null });
+    expect(await flag(viaService.leadId)).toBe(false);
+    expect(await unassigned()).toContain(viaService.leadId);
+    await leads.updateLead(ctxFor(admin), viaService.leadId, { counselorId: counselor2.id });
+    expect(await flag(viaService.leadId)).toBe(true);
+    await leads.bulkAction(ctxFor(admin), {
+      action: 'reassign',
+      ids: [viaService.leadId, bare.lead.id],
+      counselorId: counselor.id,
+    });
+    expect(await flag(viaService.leadId)).toBe(true);
+    expect(await flag(bare.lead.id)).toBe(true);
+    expect(await unassigned()).toEqual([telecallerOnly.leadId]);
+
+    // Rows removed outright (as an operator might) are noticed too.
+    await db.leadAssignment.deleteMany({ where: { leadId: fixtureAssigned.lead.id } });
+    expect(await flag(fixtureAssigned.lead.id)).toBe(false);
+
+    // Nothing disagrees with the assignments themselves.
+    const disagree = await db.$queryRaw<{ n: bigint }[]>`
+      SELECT count(*) AS n FROM leads l
+      WHERE l.tenant_id = ${tenant.id}::uuid AND l.has_counselor <> EXISTS (
+        SELECT 1 FROM lead_assignments a
+        WHERE a.lead_id = l.id AND a.is_active AND a.role_function = 'COUNSELOR')`;
+    expect(Number(disagree[0]!.n)).toBe(0);
+  });
+
   it('keyset pagination walks every row once', async () => {
     for (let i = 0; i < 7; i++) await makeLead(tenant.id, { name: `S${i}` });
     const seen: string[] = [];

@@ -28,6 +28,7 @@ const PROTECTED_INDEXES = [
   'students_parent_name_trgm',
   'lead_status_history_funnel_idx',
   'follow_ups_done_idx',
+  'leads_unassigned_idx',
 ];
 
 describe('migrations', () => {

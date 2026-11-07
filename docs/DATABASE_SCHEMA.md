@@ -138,6 +138,7 @@ Per-tenant so agencies can add their own. ROI reporting groups on this.
 | interest_course | text null | e.g. MBBS |
 | next_call_at | timestamptz null | drives the follow-up queue |
 | lost_reason | text null | when stage is a negative terminal |
+| has_counselor | bool default false | has an active counselor assignment. **Kept by the database**: statement-level triggers on `lead_assignments` (insert, update, delete) recompute it for the leads a statement touched; the application never writes it. Read by the "Unassigned" view |
 | created_at / updated_at / deleted_at | | |
 
 ### `lead_assignments`
@@ -266,6 +267,7 @@ CALL_BACK_LATER, INTERESTED, NOT_INTERESTED, AWAITING_FEEDBACK, ESCALATED
 | leads | `(tenant_id, is_potential) WHERE is_potential` | potential leads card |
 | leads | `(tenant_id, priority) WHERE priority='HOT'` | hot leads |
 | leads | `(tenant_id, created_at desc, id)` | keyset pagination |
+| leads | `leads_unassigned_idx (tenant_id, created_at desc, id) WHERE NOT has_counselor AND deleted_at IS NULL` | "Unassigned" view (hand-written; protected by the migration guard) |
 | lead_assignments | `(tenant_id, assignee_id, is_active)` | "my leads", reassignment |
 | follow_ups | `(tenant_id, assignee_id, scheduled_at)` | per-caller daily queue |
 | follow_ups | `(tenant_id, scheduled_at) WHERE completed_at IS NULL` | Today/Upcoming/Pending/Overdue |

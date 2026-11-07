@@ -208,7 +208,9 @@ export async function buildLeadFilter(
         and.push({ priority: 'HOT' });
         break;
       case 'unassigned':
-        and.push({ assignments: { none: { isActive: true, roleFunction: 'COUNSELOR' } } });
+        // A flag the database keeps from the assignments (migration lead_has_counselor), read through a
+        // partial index: looking up each lead's assignments walked every lead when few were unassigned.
+        and.push({ hasCounselor: false });
         break;
       case 'closed':
         and.push({ stage: { in: CLOSED_STAGES } });
