@@ -49,7 +49,7 @@
     "@eslint/js": "^10.0.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "^24.0.0",
-    "bullmq": "6.5.3",
+    "bullmq": "6.6.0",
     "eslint": "^10.14.0",
     "exceljs": "^4.4.0",
     "globals": "^17.14.0",
