@@ -13,7 +13,7 @@
     "@avn-cms/config": "workspace:*",
     "@avn-cms/core": "workspace:*",
     "@avn-cms/db": "workspace:*",
-    "bullmq": "6.5.3",
+    "bullmq": "6.7.0",
     "ioredis": "^6.0.0"
   }
 }
