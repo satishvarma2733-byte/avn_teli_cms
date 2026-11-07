@@ -15,6 +15,10 @@ updates:
       # Playwright is pinned to the version that matches the installed Chromium (docs/BUILD_STATUS.md).
       - dependency-name: "@playwright/test"
         update-types: [version-update:semver-minor, version-update:semver-major]
+      # Node's own types follow the Node major the app runs on (24: CI, the engines field), not the newest
+      # Node. Move this when the runtime moves.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
@@ -25,3 +29,9 @@ updates:
     directory: /avn_cms
     schedule:
       interval: weekly
+    ignore:
+      # A Postgres major cannot open the previous major's data (dump and restore), and production should
+      # decide the version: stay on 17 until the hosting target is chosen, then match it (owner decision,
+      # 2026-11-07, docs/BUILD_STATUS.md).
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]

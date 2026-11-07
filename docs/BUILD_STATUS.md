@@ -109,6 +109,17 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   Prisma 7.10's query interpreter during interactive transactions. Harmless on `pg` 8; must be
   re-checked before any upgrade to `pg` 9.
 - Playwright is pinned to 1.63.0 because that matches the Chromium already installed here.
+- **Dependencies brought up to date (2026-11-07)**, from the open Dependabot pull requests, each proven by every suite:
+  - The minor/patch group (#16): Radix dialog 1.3.1, Tailwind 4.3.3, BullMQ 6.5.3, Prisma 7.10.1, pdfkit 0.20,
+    AWS SDK, eslint, typescript-eslint, vitest and others.
+  - lucide-react 1.66 (#11) and globals 17 (#8). Redis 8.10 (#12 proposed 8.0); the dev stack's existing data loads
+    unchanged.
+  - `@tanstack/react-table` (#9 proposed v9) was **removed instead**: nothing used it.
+  - GitHub Actions moved to their Node 24 majors (#1, #2, #5, #6, #13): checkout 7, setup-node 7, pnpm/action-setup 6,
+    upload-artifact 7, codeql-action 4.
+  - **Not taken, by decision:** Postgres 18 (#3) stays on 17 until the hosting target is chosen, then matches it (a
+    major cannot open the previous one's data). `@types/node` 26 (#10) is skipped: the types follow the Node major the
+    app runs on (24). `.github/dependabot.yml` ignores both kinds of update; close #3 and #10 on GitHub.
 - The local dev database still contains the first seed run, whose activity summaries show raw
   codes (e.g. `CALL_BACK_LATER`). The seed is fixed; resetting the dev database needs your
   go-ahead (`pnpm --filter @avn-cms/db exec prisma migrate reset`, then `pnpm db:seed`).

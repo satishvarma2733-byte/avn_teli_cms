@@ -16,7 +16,7 @@
 | 5 | **Scheduled backups with an off-site copy**, and a first restore drill on the real host | The drill passes locally (`RUNBOOK.md` §5); a backup nobody has restored on production is a hope | host |
 | 6 | **Wire the alerts** in `RUNBOOK.md` §2 to a pager or chat (health, 5xx rate, worker heartbeat, failed jobs, slow requests) | The signals exist; nobody is paged yet | host |
 | 7 | **A way back for someone who lost their authenticator and recovery codes** | **Built, locally:** an admin resets a colleague, a super admin resets an agency admin (`SECURITY.md` §2.1, `RUNBOOK.md` §4.4). Left: a super-admin account still uses the operator procedure | done (super-admin accounts: operator) |
-| 8 | **Enable GitHub private vulnerability reporting and branch protection** (require CI); work through the open Dependabot PRs | CI and security are green on GitHub since 2026-11-05 (CI #28, Security #31), after the fixes in `BUILD_STATUS.md` Known issues. The Dependabot PRs were opened while CI failed and need a rebase | owner (settings); CI done |
+| 8 | **Enable GitHub private vulnerability reporting and branch protection** (require CI) | CI and security are green on GitHub since 2026-11-05 (CI #28, Security #31). The Dependabot backlog was worked through on 2026-11-07 (`BUILD_STATUS.md` Known issues); Postgres 18 waits for the hosting choice | owner (settings); CI and updates done |
 | 9 | **Email delivery (SMTP provider)** for invitations and resets | Without it the admin copies links by hand | owner |
 | 10 | Reset the local dev database to load the corrected seed | Cosmetic, dev only | owner (destructive) |
 

@@ -12,6 +12,10 @@
 |---|---|---|
 | Web (UI + API) | `pnpm build` once, then `pnpm start` (port 3300) | Postgres, Redis (recommended), SMTP (optional), Cloudflare R2 + ClamAV (for documents) |
 | Worker | `pnpm --filter @avn-cms/worker start` | Postgres, **Redis (required)** |
+
+Versions tested: Postgres 17 and Redis 8.10 (local stack and CI; Redis 7.4 before 2026-11-07). Pick the
+production Postgres major with the host and move the local stack to match. Redis 8 is offered under AGPLv3, RSALv2
+or SSPLv1. A managed Redis from the host avoids the question; Redis-compatible Valkey should work but is untested here.
 | Migrations | `pnpm db:migrate` | Postgres owner role |
 
 Node.js ≥ 22.12 (developed on 24.14), pnpm 9. The web app is stateless; run as many
