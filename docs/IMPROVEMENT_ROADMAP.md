@@ -25,6 +25,7 @@
 | # | Item | Notes |
 |---|---|---|
 | 11a | **Sign-in limit for shared offices**: today 10 sign-ins a minute per address. An office behind one public address could be refused at the start of a shift. Options: count per address *and* account, a higher per-address cap, or a per-agency allow-list of office addresses | Found 2026-11-05 by the browser tests; security trade-off, owner decision (`BUILD_STATUS.md` Known issues) |
+| 11b | **Serve documents through the app** (audit each fetch, no bearer links) | Today a document's bytes come straight from R2 through a signed URL. The audit records who was given the link, and a copied link works for its lifetime (1 minute, 5 for a preview). Serving through the app records every fetch and needs the session each time, but every document then passes through the web servers (up to 20 MB each). Owner decision |
 | 11 | **Telephony**: click-to-call from the browser or a phone app, call duration and recording link logged on the call | Needs a provider decision (Exotel, Knowlarity, Twilio…); the follow-up model already has the disposition and timeline entry |
 | 12 | **WhatsApp Business** templates and a shared inbox; delivery status in the timeline | Needs Meta approval and a BSP |
 | 13 | **Email and SMS** notifications and reminders; sign-in alert emails | Provider decision |

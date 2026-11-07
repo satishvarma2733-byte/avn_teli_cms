@@ -38,7 +38,15 @@ import { formatFor, resolveFormat, safeFilename } from './rules';
  * documents of students on their own leads (404 for anyone else's).
  */
 const UPLOAD_URL_SECONDS = 10 * 60;
-const DOWNLOAD_URL_SECONDS = 5 * 60;
+/**
+ * A signed document URL works for whoever holds it, and the audit row is written when it is issued (the
+ * bytes come straight from storage). A download starts the moment the URL arrives, since the page sends the
+ * browser to it at once, so a minute is plenty and a copied link soon stops working. A preview stays
+ * open, and the browser's PDF viewer keeps fetching parts of the file through the same URL, so it needs
+ * longer.
+ */
+const DOWNLOAD_URL_SECONDS = 60;
+const PREVIEW_URL_SECONDS = 5 * 60;
 const MAX_FOLDER_DEPTH = 8;
 const LIST_LIMIT = 500;
 const ACCEPTED = 'This file type isn’t accepted. Use PDF, JPG, PNG, WebP, Word, Excel or text files.';
@@ -557,17 +565,14 @@ export async function documentUrl(ctx: Ctx, id: string, disposition: 'attachment
     });
     return { doc: found, inline: asInline };
   });
+  const seconds = inline ? PREVIEW_URL_SECONDS : DOWNLOAD_URL_SECONDS;
   const url = await store.presignGet(doc.storageKey, {
     filename: doc.filename,
     contentType: doc.mimeType,
     inline,
-    expiresInSeconds: DOWNLOAD_URL_SECONDS,
+    expiresInSeconds: seconds,
   });
-  return {
-    url,
-    filename: doc.filename,
-    expiresAt: new Date(Date.now() + DOWNLOAD_URL_SECONDS * 1000),
-  };
+  return { url, filename: doc.filename, expiresAt: new Date(Date.now() + seconds * 1000) };
 }
 
 /** Removes every version of a document from view. The stored files are purged by the worker later. */

@@ -78,8 +78,14 @@ ClamAV finds nothing.
 
 ## 4. Downloads
 
-`GET /api/documents/:id/url` returns a signed URL valid 5 minutes. The page asks for a fresh one at
-the moment of each download. It answers **409** for a file that is still being checked or blocked.
+`GET /api/documents/:id/url` returns a signed URL. A download URL is valid **1 minute** (the page sends the browser
+to it the moment it arrives). A preview URL is valid 5 minutes, because the browser's PDF viewer keeps fetching parts
+of the file through it. The page asks for a fresh one at the moment of each download. It answers **409** for a file
+that is still being checked or blocked.
+
+The bytes come straight from storage, never through the app, so the audit records **who was given a link**, not
+the fetch itself. Whoever holds the URL can use it until it expires. Recording each fetch would mean serving
+documents through the app instead (owner decision, `IMPROVEMENT_ROADMAP.md`).
 
 - The audit row `document.downloaded` is written **in the same transaction as the access check**, so
   no link is issued without a record. It records the link being issued; R2 serves the bytes itself,
