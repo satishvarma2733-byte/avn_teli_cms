@@ -92,7 +92,10 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   `ORDER BY id` and took up to 5 s (now "1,000+", counted newest-first); the dashboard took 21 s and timed out (rewritten
   and cached); the rate limit of a write was shared with reads of the same path (a counselor was refused after 60 page
   views in a minute).
-- **Phase 10, open:** the "Unassigned" view walks all leads when none is unassigned (2.4 s at a million); the first look
+- **Phase 10, fixed 2026-11-07:** the "Unassigned" view walked all leads when none was unassigned: 3.5 s at a million,
+  now 0.05 ms. Each lead carries `has_counselor`, kept by a database trigger on the assignments and read through a
+  partial index (`DATABASE_SCHEMA.md`, `SCALABILITY.md` §8).
+- **Phase 10, open:** the first look
   at a report after a quiet spell takes 1–2.5 s (then it is cached for a minute, so agency-wide figures can be a minute
   old); someone who loses both their authenticator and their recovery codes can only be helped by an operator
   (`RUNBOOK.md` §4.4); the load numbers come from one laptop sharing the generator, the servers and the database
@@ -135,10 +138,16 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   - The **dependency audit** found 16 new advisories, 4 critical (Next.js 16.3.8 remote code execution). `next` is now
     16.4.5, with `nodemailer` and `fast-uri` patched, and one `minimatch` advisory recorded as accepted (`SECURITY.md` §2.6).
   - The 12 open Dependabot pull requests failed for the same type-check reason. Rebase them after the push.
-- The seed (`pnpm db:seed`) does not install the starter automation rules, so the browser tests start without rules and add them from the page. In a development workspace an admin presses **Add starter rules**. Workspaces that existed when the Phase 8 migration ran got the overdue-escalation rule only.
+- Since 2026-11-07 the seed (`pnpm db:seed`) gives both demo workspaces the starter automation rules, like a workspace
+  made from the platform console. The browser tests seed with `SEED_STARTER_RULES=false` and add them from the page.
+  A development database seeded before then has none: an admin presses **Add starter rules**. Workspaces that existed
+  when the Phase 8 migration ran got the overdue-escalation rule only.
 - Time-based rules fire up to about 2 minutes late (the worker sweeps every 2 minutes) and only look at recent records (3 days for uncontacted leads, 7 days for overdue calls).
 - Documents have never run against a real Cloudflare R2 bucket (no account or keys here). MinIO speaks the same S3 API and every flow is tested on it, but R2's CORS rules (`DOCUMENTS.md` §9) and its handling of signed uploads need one real try before go-live, as does the `HeadBucket` storage health probe with a bucket-scoped Object Read & Write token.
-- Downloads are audited when the signed link is issued, not when the bytes are fetched.
+- **Document** downloads are audited when the signed link is issued, not when the bytes are fetched. The bytes come
+  straight from R2, and the link works for whoever holds it. Since 2026-11-07 a download link lasts 1 minute (a preview
+  5); serving documents through the app instead is `IMPROVEMENT_ROADMAP.md` #11b. Exports and import reports are
+  served by the app and audited at the fetch itself.
 - **Found and fixed (2026-10-16):** the Exports list (Phase 6) scrolled sideways on a phone once it had rows: the visually hidden "Action" header text is positioned against the page, not the table, so it sat off-screen at the far right and widened the page. My earlier phone check missed it because the list was empty. Fixed in the exports list and the new vault table (the scrolling wrapper is now the positioning context), and the browser tests now check phone width on the vault, exports and imports lists.
 - **Found and fixed (2026-11-04):** with the type check fixed, CI then failed when starting its services. MinIO no longer
   publishes any image (`minio/minio` on Docker Hub needs authentication, and Quay, which CI used, has no tags left), so

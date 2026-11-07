@@ -2,15 +2,19 @@
  * Local/demo seed. Everything created here is TEST DATA: fictional names, +91 90000 phone
  * numbers and *.test emails. Refuses to run in production and refuses to run twice.
  *
- *   pnpm db:seed                 → demo tenant + users + ~40 students/leads
+ *   pnpm db:seed                 → demo tenant + users + ~40 students/leads + the starter automation rules
  *   SEED_PASSWORD=… pnpm db:seed → choose the demo users' password (default in .env.example)
+ *   SEED_STARTER_RULES=false     → no automation rules (the browser tests add them from the page)
  */
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { hash } from '@node-rs/argon2';
 
+// The same definitions the platform gives every new workspace (plain data; a script may reach into core).
+import { starterRuleRows } from '../../core/src/automation/starter';
 import { createClient } from '../src/client';
+import type { Prisma } from '../generated/prisma/client';
 import type { CallDisposition, LeadStage, PlanCode, RoleCode } from '../generated/prisma/enums';
 
 const rootEnv = fileURLToPath(new URL('../../../.env', import.meta.url));
@@ -187,8 +191,19 @@ async function main() {
       ['COUNSELOR', 'Olivia Counselor', 'counselor@other.test'],
     ],
   });
+  // Like a workspace made from the platform console, each starts with the starter automation rules.
+  const withRules = process.env['SEED_STARTER_RULES'] !== 'false';
+  if (withRules) {
+    for (const slug of ['demo', 'other']) {
+      const tenant = await db.tenant.findUniqueOrThrow({ where: { slug } });
+      await db.automationRule.createMany({
+        data: starterRuleRows(tenant.id, null) as Prisma.AutomationRuleCreateManyInput[],
+        skipDuplicates: true,
+      });
+    }
+  }
   console.log(
-    'Seed complete: tenants "demo" and "other" (test data), platform admin superadmin@avn-cms.test.',
+    `Seed complete: tenants "demo" and "other" (test data), platform admin superadmin@avn-cms.test${withRules ? ', starter automation rules' : ''}.`,
   );
 }
 

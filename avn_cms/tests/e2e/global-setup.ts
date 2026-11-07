@@ -32,6 +32,8 @@ export default async function globalSetup(config: FullConfig) {
         ...process.env,
         SEED_DATABASE_OWNER_URL: ownerUrl,
         SEED_PASSWORD: E2E_PASSWORD,
+        // The automation tests add the starter rules from the page; no other test should have rules firing.
+        SEED_STARTER_RULES: 'false',
         NODE_ENV: 'development',
       },
       stdio: 'inherit',
