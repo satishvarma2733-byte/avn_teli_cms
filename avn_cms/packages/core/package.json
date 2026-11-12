@@ -20,7 +20,7 @@
     "@avn-cms/db": "workspace:*",
     "@aws-sdk/client-s3": "^3.1161.0",
     "@aws-sdk/s3-request-presigner": "^3.1161.0",
-    "bullmq": "6.5.3",
+    "bullmq": "6.7.0",
     "csv-parse": "^7.0.3",
     "csv-stringify": "^6.6.0",
     "exceljs": "^4.4.0",
