@@ -24,16 +24,22 @@
 | Lint, architecture rules | `pnpm lint` | — | 0 warnings allowed | Import boundaries (the owner database client cannot be imported outside auth, platform and system jobs; pages and components call core services, never the database package), strict typing rules, React hooks rules |
 | Formatting | `pnpm format:check` | — | | One style |
 | Types | `pnpm typecheck` | — | 6 packages | Strict TypeScript across web, worker and packages |
-| Unit | `pnpm test:unit` | nothing | 293 | RBAC matrix (every role × action cell), TOTP vectors (RFC 6238), crypto and keyed hashes, phone normalisation, keyset cursors, intake normaliser, import parsing and mapping, document type and signature rules, the clamd protocol, automation definitions and matching, client-address and redirect rules, password rules, page security policy, code rules for routes and pages, the answer cache, request metrics, log and heartbeat helpers |
-| Integration | `pnpm test:integration` | Postgres test DB (and Redis, MinIO, ClamAV from `pnpm stack:up`) | 250 (25 files) | Real database with row-level security: tenancy, auth, leads, follow-ups, web-lead contract, reports, users and platform, imports (incl. 50,000 rows), exports, cut-off job recovery, job queue on real Redis, documents (EICAR virus never downloadable), automation, after-commit hook, two-step verification, the gate on every route, cross-workspace checks on every route, plans and usage, search and totals, operations (health, metrics, heartbeat, cache on Redis) |
-| End to end | `pnpm test:e2e` | production build, Chromium, the docker stack | 50 (11 spec files) | Journeys for every role and critical path in a browser, with axe WCAG A/AA checks: sign-in, lead journey, call logging, RBAC, security headers/CSP/XSS/redirects, two-step verification, users, web-lead intake, import wizard, exports, documents, automation, plans |
+| Unit | `pnpm test:unit` | nothing | 304 | RBAC matrix (every role × action cell), TOTP vectors (RFC 6238), crypto and keyed hashes, phone normalisation, keyset cursors, intake normaliser, import parsing and mapping, document type and signature rules, the clamd protocol, automation definitions and matching, client-address and redirect rules, password rules, page security policy, code rules for routes and pages, the answer cache, request metrics, log and heartbeat helpers |
+| Integration | `pnpm test:integration` | Postgres test DB (and Redis, MinIO, ClamAV from `pnpm stack:up`) | 255 (26 files) | Real database with row-level security: tenancy, auth, leads, follow-ups, web-lead contract, reports, users and platform, imports (incl. 50,000 rows), exports, cut-off job recovery, job queue on real Redis, documents (EICAR virus never downloadable), automation, after-commit hook, two-step verification, the gate on every route, cross-workspace checks on every route, plans and usage, search and totals, operations (health, metrics, heartbeat, cache on Redis) |
+| End to end | `pnpm test:e2e` | production build, Chromium, the docker stack | 99 (13 spec files) | Journeys for every role and critical path in a browser, with axe WCAG A/AA checks: sign-in, lead journey, call logging, RBAC, security headers/CSP/XSS/redirects, two-step verification, users, web-lead intake, import wizard, exports, documents, automation, plans, **every screen at phone and tablet width (sideways scroll, accessibility, menu)** and **page-load budgets** |
 | HTTP smoke | `pnpm smoke:webleads --url … --tenant …` | a running server | 7 checks | The LeadXP-compatible intake end to end, for a deployed environment (staging only) |
 | Load | `pnpm load:run` | `pnpm load:up`, a seeded 1M-lead database, a build | — | Latency and error rate at 1,000,000 leads (`SCALABILITY.md` §5) |
 | Restore drill | `pnpm restore:drill` | the load or any Postgres container | — | A backup restores and matches (`RUNBOOK.md` §5) |
 
 All of unit, integration and e2e run in CI on every push and pull request (`.github/workflows/ci.yml`, Ubuntu with
 Postgres 17, Redis, MinIO and ClamAV containers); `security.yml` adds dependency advisories, secret scanning and CodeQL.
-**Both workflows are written and pass locally but have not run on GitHub yet.**
+Both pass on GitHub (`BUILD_STATUS.md`). CI installs Chromium only.
+
+**Other browser engines.** The same browser suite runs in Firefox and WebKit, one engine per run (each run resets and
+seeds the database first): `E2E_BROWSERS=firefox pnpm test:e2e:only`, `E2E_BROWSERS=webkit pnpm test:e2e:only`. They
+need the engines installed (`pnpm exec playwright install firefox webkit`). The Chromium-only performance
+budgets (`performance.spec.ts`: time to first byte, Largest Contentful Paint, layout shift and script weight of five
+page loads) skip themselves elsewhere. Playwright's WebKit is the engine Safari is built on, not Safari itself.
 
 ## 3. Where each requirement is tested
 
@@ -105,7 +111,7 @@ application role, and it still cannot read password hashes.
 | A real host: TLS, proxy header behaviour, `TRUSTED_PROXY_HOPS`, CDN | No hosting target | `DEPLOYMENT.md` §6a checklist on the first staging deploy |
 | Cloudflare R2 itself (CORS, signed upload behaviour) | No account yet | One real upload/scan/download before go-live (`DOCUMENTS.md` §9) |
 | Independent penetration test, DAST (ZAP) of staging | Needs a vendor and a staging host | `IMPROVEMENT_ROADMAP.md` P0 #3 |
-| WebKit and Firefox | Chromium only | Add projects to Playwright config |
+| Real Safari and Edge, and phones | Firefox and WebKit run through Playwright (§2); Edge shares Chromium's engine but is not run itself; no real device | Check on the real devices the agency uses |
 | The worker process killed mid-run | The cut-off is reproduced through the database and by failing a live run | Chaos test on staging |
 | CI on GitHub | Written, never run there | Push, then enable branch protection |
 | Load above one million leads, several agencies loaded at once, a production-sized machine | One laptop shared by the generator, the server and the database | Re-run on the real host |

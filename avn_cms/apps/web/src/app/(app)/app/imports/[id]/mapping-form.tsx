@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Field, Select } from '@/components/ui/field';
-import { Alert, Card, CardHeader } from '@/components/ui/primitives';
+import { Alert, Card, CardHeader, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { useDirectory } from '@/lib/use-directory';
 
@@ -91,7 +91,7 @@ export function MappingForm({
 
       <Card>
         <CardHeader title="What’s in your file" description="The first few rows, as we read them." />
-        <div className="overflow-x-auto p-5">
+        <div {...scrollRegionProps('First rows of the uploaded file', 'p-5')}>
           <table className="w-full min-w-max text-left text-sm">
             <caption className="sr-only">First rows of the uploaded file</caption>
             <thead>

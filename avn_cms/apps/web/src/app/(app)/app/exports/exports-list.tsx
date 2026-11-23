@@ -4,7 +4,15 @@ import { Download, FileDown } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Badge, Alert, Card, EmptyState, Skeleton, type Tone } from '@/components/ui/primitives';
+import {
+  Badge,
+  Alert,
+  Card,
+  EmptyState,
+  Skeleton,
+  type Tone,
+  scrollRegionProps,
+} from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatDateTime } from '@/lib/format';
 import { ENTITY_LABEL, EXPORT_WORKING, FORMAT_LABEL, type ExportJob } from '@/components/exports/types';
@@ -79,7 +87,7 @@ export function ExportsList() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="relative overflow-x-auto">
+      <div {...scrollRegionProps('Your exports', 'relative')}>
         <table className="w-full min-w-[640px] text-sm">
           <caption className="sr-only">Your exports, newest first</caption>
           <thead className="bg-surface text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">

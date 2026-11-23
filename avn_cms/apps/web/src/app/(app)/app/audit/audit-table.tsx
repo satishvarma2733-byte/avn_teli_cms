@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/field';
-import { Alert, Badge, Card, EmptyState, Skeleton } from '@/components/ui/primitives';
+import { Alert, Badge, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatDateTime } from '@/lib/format';
 
@@ -102,7 +102,7 @@ export function AuditTable() {
         ) : rows.length === 0 ? (
           <EmptyState icon={<ScrollText />} title="No matching entries" />
         ) : (
-          <div className="overflow-x-auto">
+          <div {...scrollRegionProps('Audit log entries')}>
             <table className="w-full min-w-[820px] text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr className="border-b border-border">

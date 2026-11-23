@@ -74,6 +74,7 @@ leadxp-rebuild/
 │   ├── REQUIREMENTS.md           ← requirements traced to docs and phases
 │   ├── BUILD_STATUS.md           ← live build status + actual test results
 │   ├── DEPLOYMENT.md             ← environments, release, health, backups, rollback
+│   ├── PRODUCTION_READINESS.md   ← the final audit: what passed, what needs the owner (2026-11-23)
 │   ├── RUNBOOK.md                ← on-call: signals, alerts, incident playbooks, restore drill
 │   ├── SCALABILITY.md            ← load test at 1,000,000 leads, findings, capacity, plans and usage
 │   ├── TEST_PLAN.md              ← every suite, what it proves, how to run it
@@ -136,7 +137,7 @@ pnpm build && pnpm load:run --label 1m   # 150 staff for 90 s + website intake; 
 pnpm restore:drill                       # dump, restore into a new database, verify, drop it
 ```
 
-Deployment, backups and rollback: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). On call: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+Deployment (a one-server Docker recipe is in `avn_cms/deploy/`), backups and rollback: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). Readiness audit: [`docs/PRODUCTION_READINESS.md`](docs/PRODUCTION_READINESS.md). On call: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ---
 

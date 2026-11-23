@@ -8,7 +8,7 @@ import { ResetMfaDialog, resetMfaMessage } from '@/components/security/reset-mfa
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/field';
-import { Alert, Badge, Card, EmptyState, Skeleton } from '@/components/ui/primitives';
+import { Alert, Badge, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatRelative } from '@/lib/format';
 
@@ -100,7 +100,7 @@ export function UsersTable({ currentUserId }: { currentUserId: string }) {
         ) : items.length === 0 ? (
           <EmptyState icon={<Plus />} title="No users yet" />
         ) : (
-          <div className="overflow-x-auto">
+          <div {...scrollRegionProps('Users')}>
             <table className="w-full min-w-[720px] text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr className="border-b border-border">

@@ -1,0 +1,17 @@
+# Keep the build context small and keep secrets out of the image.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+**/*.log
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+deploy/.env.production
+packages/db/generated
+test-results
+playwright-report
+load-results
+.git

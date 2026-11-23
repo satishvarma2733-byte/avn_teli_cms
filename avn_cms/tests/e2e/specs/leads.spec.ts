@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { as, expectAccessible, testPhone } from './helpers';
+import { as, expectAccessible, gotoReady, testPhone } from './helpers';
 
 test.use(as('admin'));
 
@@ -11,7 +11,7 @@ test('lead journey: create → duplicate caught → search → stage → assign 
   const name = `E2E Student ${phone.slice(-4)}`;
 
   // Create
-  await page.goto('/app/leads/new');
+  await gotoReady(page, '/app/leads/new');
   await expectAccessible(page);
   await page.getByLabel('Student name').fill(name);
   await page.getByLabel('Mobile number').fill(phone);
@@ -24,7 +24,7 @@ test('lead journey: create → duplicate caught → search → stage → assign 
   const leadUrl = page.url();
 
   // Duplicate phone is caught before saving
-  await page.goto('/app/leads/new');
+  await gotoReady(page, '/app/leads/new');
   await page.getByLabel('Student name').fill('Someone else');
   await page.getByLabel('Mobile number').fill(`+91 ${phone.slice(0, 5)} ${phone.slice(5)}`);
   await page.getByLabel('Source').selectOption({ label: 'Website' });
@@ -80,5 +80,15 @@ test('dashboard, follow-ups and reports render from real data', async ({ page })
   await page.goto('/app/reports');
   await expect(page.getByRole('heading', { name: 'Conversion funnel' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Team performance' })).toBeVisible();
+  await expectAccessible(page);
+});
+
+test('an empty student form says what to fill in, in plain words', async ({ page }) => {
+  await gotoReady(page, '/app/leads/new');
+  await page.getByRole('button', { name: 'Save student' }).click();
+  await expect(page.getByText('Enter the student’s name.')).toBeVisible();
+  await expect(page.getByText('Enter a phone number.')).toBeVisible();
+  await expect(page.getByText('Choose a source.')).toBeVisible();
+  await expect(page.getByText(/Invalid input|expected string|received undefined/)).toHaveCount(0);
   await expectAccessible(page);
 });

@@ -8,6 +8,16 @@ export const as = (role: 'admin' | 'counselor1' | 'counselor2' | 'telecaller1' |
 });
 
 /**
+ * Opens a page and waits until its scripts have run. Form boxes are controlled by the page's scripts:
+ * text typed before they run (an automated test is far faster than a person) is wiped when they take
+ * over, which showed up as an empty first field in WebKit, the slowest engine to hydrate.
+ */
+export async function gotoReady(page: Page, path: string) {
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
+}
+
+/**
  * Presses "Sign in" on the sign-in page, as a person would, and waits for the answer. Every browser test
  * signs in from the same address, and the real limit is 10 sign-ins a minute per address. On a fast
  * machine the suite can reach it, so a 429 is waited out (the server's Retry-After) and the button pressed

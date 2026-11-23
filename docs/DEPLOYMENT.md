@@ -109,6 +109,47 @@ after a migration that adds indexes or after any large import. Never edit a migr
 **Sizing and scaling** are in `SCALABILITY.md` §6 (about 70 requests a second per web instance for the load-test mix; 10
 database connections per instance; put PgBouncer in front above about 8 instances).
 
+## 4a. One-server deployment with Docker
+
+For a VPS or any host that runs Docker (DigitalOcean, Hetzner, Hostinger VPS, an AWS EC2 instance, and so on) the
+repository ships a container recipe. It is host-agnostic and does not decide the hosting target (`BUILD_STATUS.md`
+decision 2); a managed Postgres or Redis, Kubernetes or a PaaS can run the same image (`Dockerfile`) with the variables
+in §2.
+
+**Which hosting plans can run it.** aVn CMS is two long-running Node.js processes (web and worker) plus Postgres 15+
+and Redis, and a virus scanner for documents. That needs a **VPS or cloud instance where you can run those processes**
+(about 2 vCPU and 4 GB of memory for a first agency; more for the ClamAV scanner, which holds its signatures in about
+1.5 GB; sizing in `SCALABILITY.md` §6). **Shared or "business" web hosting that only serves PHP or static files, or
+runs a single Node app without a database server and a background worker, cannot run it**; Vercel and similar
+serverless platforms can run the web app but not the worker, so they also need an external Postgres and Redis, a
+separate place to run the worker, and the connection limits in `SCALABILITY.md` §6. Check the plan before buying it.
+
+| File | What it is |
+|---|---|
+| `avn_cms/Dockerfile` | One image for web, worker and migrations (Node 24, Debian slim, non-root, health check) |
+| `avn_cms/deploy/docker-compose.prod.yml` | web, worker, a one-shot `migrate`, Postgres 17, Redis 8, ClamAV and Caddy; only Caddy publishes ports |
+| `avn_cms/deploy/Caddyfile` | HTTPS (certificate issued and renewed automatically), HTTP→HTTPS redirect, TLS 1.2+, health-checked upstream |
+| `avn_cms/deploy/.env.production.example` | Every variable the recipe reads, with how to generate each secret |
+| `avn_cms/deploy/postgres-init/01-app-role.sh` | Creates the `avn_app` role (no `BYPASSRLS`) with a password from the environment |
+| `avn_cms/deploy/deploy.sh` | Build → migrate → start → health check through the proxy |
+| `avn_cms/deploy/backup.sh` | Daily `pg_dump` into `backups/`, newest 14 kept (copy them off the server) |
+
+First deployment on a new server:
+
+1. Point `APP_HOST`'s DNS record at the server and open ports 80 and 443 (nothing else; Postgres, Redis and ClamAV have no
+   published port).
+2. Install Docker Engine with the Compose plugin, clone the repository, `cd avn_cms`.
+3. `cp deploy/.env.production.example deploy/.env.production`, fill it in, `chmod 600 deploy/.env.production`.
+4. `sh deploy/deploy.sh`. The first start also downloads ClamAV's signatures (a few minutes) and obtains the certificate.
+5. Create the first super admin inside the running container, then sign in and create the first agency (§3):
+   `docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.production exec web pnpm admin:create-superadmin --email ops@example.com --name "Ops Admin"`.
+6. Work through §6a (the security checklist) and the smoke checks in §5, then schedule `deploy/backup.sh` from cron.
+
+Updating: `git pull && AVN_VERSION=$(git rev-parse --short HEAD) sh deploy/deploy.sh`. The `migrate` service runs first; if
+it fails, web and worker are not replaced. **Rolling back:** `git checkout <previous commit>` and run the same command (the
+previous image is rebuilt from the cache, or reuse its tag: `AVN_VERSION=<old> docker compose … up -d --no-build`). Migrations are
+additive (§4), so older code runs on the newer schema; restore a backup only for data damage (§8).
+
 ## 5. Health and smoke checks
 
 - `GET /api/health` → `200 {"status":"ok","database":"up","redis":"up","storage":"up","scanner":"up","worker":"up"}`; `503` with

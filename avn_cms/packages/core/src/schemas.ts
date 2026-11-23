@@ -24,8 +24,10 @@ const text = (max: number) =>
     .nullable()
     .optional();
 
+// `error` covers a field that was left out altogether (a form drops empty boxes), not only an empty one:
+// without it the person is told "expected string, received undefined".
 const requiredText = (max: number, message: string) =>
-  z.string().trim().min(1, message).max(max, `Use at most ${max} characters.`);
+  z.string({ error: message }).trim().min(1, message).max(max, `Use at most ${max} characters.`);
 
 const emailField = z
   .string()
@@ -38,7 +40,7 @@ const emailField = z
   .optional();
 
 const phoneField = z
-  .string()
+  .string({ error: 'Enter a phone number.' })
   .trim()
   .min(1, 'Enter a phone number.')
   .max(20, 'That phone number is too long.');
@@ -129,7 +131,7 @@ export const studentCreateSchema = z.object({
   district: text(100),
   state: text(100),
   address: text(500),
-  sourceId: uuid,
+  sourceId: z.uuid({ error: 'Choose a source.' }),
   interestCountry: text(100),
   interestCourse: text(100),
   isPotential: z.boolean().optional(),

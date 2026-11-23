@@ -1,7 +1,7 @@
 # Build Status — aVn CMS
 
 > Live record. A module is **Verified** only when its behaviour runs and its checks pass.
-> Code: `avn_cms/`. Last updated: 2026-11-04.
+> Code: `avn_cms/`. Last updated: 2026-11-23. A full re-check for production readiness: `PRODUCTION_READINESS.md`.
 
 **Overall status: PHASES 1–10 IMPLEMENTED AND VERIFIED LOCALLY — NOT YET RUN ON A REAL HOST**
 
@@ -53,20 +53,20 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Observability and operations | Verified | `X-Request-Id` on every API answer, JSON access/error logs, `instrumentation.ts` render errors, worker heartbeat, `/api/health` with `worker`, `/api/metrics` (Prometheus), restore drill, runbook. `RUNBOOK.md` |
 | CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | **Verified on GitHub** (2026-11-05) | CI #28 on `de6178e` passed every step on ubuntu-latest: lint, formatting, types, services, unit, integration and all 50 browser tests; Security #31 passed. Until then every run since phase 9 had failed (see Known issues). Browser-test failures show as annotations |
 
-## Tests (actual results, 2026-11-06, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5; the same suites pass on GitHub CI)
+## Tests (actual results, 2026-11-23, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5; the same suites passed on GitHub CI on 2026-11-06)
 
 | Suite | Command | Result |
 |---|---|---|
 | Lint (incl. architecture import boundaries) | `pnpm lint` | pass, 0 warnings |
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
-| Unit | `pnpm test:unit` | **301 passed** (zip-bomb limits for .xlsx imports; the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
-| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **254 passed in 26 files** (plan limits under parallel requests; time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
-| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **50 passed** (sign-in, automation, leads, RBAC, security headers/CSP/XSS/redirects/two-step verification, users, web-leads intake, import wizard incl. a cut-off import and start over, exports, documents; Phase 10 added plan and usage, including a platform plan change, and a telecaller working the call queue) |
+| Unit | `pnpm test:unit` | **304 passed** (plain messages for missing required fields; zip-bomb limits for .xlsx imports; the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **255 passed in 26 files** (plan limits under parallel requests; time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
+| End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **99 passed in Chromium** (13 spec files; also **94 in Firefox and 94 in WebKit**, 5 Chromium-only timing tests skipped there: `E2E_BROWSERS=firefox|webkit pnpm test:e2e:only`); **every screen at phone and tablet width** and page-load budgets (`responsive.spec.ts`, `performance.spec.ts`); sign-in, automation, leads, RBAC, security headers/CSP/XSS/redirects/two-step verification, users, web-leads intake, import wizard incl. a cut-off import and start over, exports, documents; Phase 10 added plan and usage, including a platform plan change, and a telecaller working the call queue) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
 
-Not run: WebKit/Firefox e2e; tests against a real staging host or a production-sized machine; a database larger than memory; several agencies loaded at once; a worker process killed mid-run (the cut-off is reproduced through the database and by failing a live run). The load test at 1,000,000 leads and the restore drill are Phase 10 results: `SCALABILITY.md`, `RUNBOOK.md` §5.
+Not run: Safari and Edge themselves and real phones (Firefox and WebKit run through Playwright); Lighthouse; tests against a real staging host or a production-sized machine; a database larger than memory; several agencies loaded at once; a worker process killed mid-run (the cut-off is reproduced through the database and by failing a live run). The load test at 1,000,000 leads and the restore drill are Phase 10 results: `SCALABILITY.md`, `RUNBOOK.md` §5.
 
 ## Security status
 
@@ -201,6 +201,15 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
   gives up after 10 s; the import service then puts the import back to VALIDATED and the export
   service fails the export ("The export could not be started. Try again."). See `IMPORT_EXPORT.md` §7.
 
+- **Found and fixed (2026-11-23), in the production-readiness review (`PRODUCTION_READINESS.md` §6):** three tables could not
+  be scrolled with the keyboard (found by the new every-screen phone and tablet test; all ten table wrappers now use
+  `scrollRegionProps`); the empty new-student form showed "Invalid input: expected string, received undefined" (the schemas now
+  carry plain messages for a missing field); `effect` ≤3.22.0 (a high advisory under Prisma's tooling) pinned to ≥3.22.5;
+  `deploy.sh` ignored a failed health check; WebKit exposed that text typed into a form before its scripts run is lost (the
+  tests now wait for the page to load); `/robots.txt` added.
+- **Open, small (2026-11-23):** a person typing into a form in the first moment before its scripts have loaded can lose that
+  text (the forms are controlled by the page's scripts). It showed only in WebKit under automation, so it is not changed.
+
 ## External dependencies / not in scope by decision
 
 - eWings: **compatibility only** (owner decision). `POST /api/webleads` accepts both eWings
@@ -213,7 +222,7 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 
 1. **Repository:** `main` is pushed to https://github.com/satishvarma2733-byte/avn_teli_cms
    (2026-10-16, repo-local identity `opsewings`). CI and security scans run on every push and pass since 2026-11-05 (CI #28, Security #31). Enable **private vulnerability reporting** and branch protection (require CI) in the repository settings; Dependabot already opens pull requests.
-2. **Hosting target** for staging and production (Node server + Postgres + Redis).
+2. **Hosting target** for staging and production (Node server + Postgres + Redis). A host-agnostic one-server Docker recipe is ready and was run locally (`DEPLOYMENT.md` §4a, `avn_cms/deploy/`); it needs a VPS or cloud instance, not shared web hosting.
 3. **Reset the local dev database** to load the corrected seed (destructive, local only).
 4. **Cloudflare R2 for staging/production:** create the bucket and an Object Read & Write token, set its CORS rules, and provide a private ClamAV host (`DOCUMENTS.md` §9–10); you will connect them later through `.env`.
 5. **Before go-live:** an independent penetration test and a ZAP scan of staging; set `TRUSTED_PROXY_HOPS`, `MFA_REQUIRED_ROLES` and an `https://` `APP_URL` (`SECURITY.md` §5, §8). Phase 10 (production readiness) is done locally; the P0 list in `IMPROVEMENT_ROADMAP.md` is what stands between this and real customer data.

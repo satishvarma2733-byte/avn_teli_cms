@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 
 import { E2E_PASSWORD } from '../global-setup';
 
-import { expectAccessible, pressSignIn } from './helpers';
+import { expectAccessible, gotoReady, pressSignIn } from './helpers';
 
 test.describe('sign-in', () => {
   test('wrong password is refused with a generic message; correct one lands on the dashboard', async ({
     page,
   }) => {
-    await page.goto('/login');
+    await gotoReady(page, '/login');
     await expect(page).toHaveTitle(/Sign in · aVn CMS/);
     await expectAccessible(page);
     await page.getByLabel('Workspace').fill('demo');
@@ -24,7 +24,7 @@ test.describe('sign-in', () => {
   });
 
   test('telecallers land on their call queue', async ({ page }) => {
-    await page.goto('/login');
+    await gotoReady(page, '/login');
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('telecaller2@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
@@ -55,7 +55,7 @@ test.describe('sign-in', () => {
 test.describe('sign-out', () => {
   test('signing out ends the session', async ({ page, context }) => {
     // A fresh session (the stored per-role sessions are reused by other specs).
-    await page.goto('/login');
+    await gotoReady(page, '/login');
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('counselor2@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);

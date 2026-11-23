@@ -12,7 +12,7 @@ import { LeadFlags, StageBadge } from '@/components/leads/stage-badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
-import { Alert, Card, EmptyState, Skeleton } from '@/components/ui/primitives';
+import { Alert, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { cn } from '@/lib/cn';
 import { useApi } from '@/lib/client';
 import { formatDate, formatDateTime, formatPhone } from '@/lib/format';
@@ -334,7 +334,7 @@ export function LeadsWorkspace({
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div {...scrollRegionProps('Leads')}>
             <table className="w-full min-w-[720px] text-sm">
               <thead className="sticky top-0 z-10 bg-surface text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <tr className="border-b border-border">

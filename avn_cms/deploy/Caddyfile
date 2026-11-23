@@ -1,0 +1,27 @@
+# HTTPS in front of the web app. Caddy gets the certificate from Let's Encrypt for APP_HOST (the host must
+# resolve to this server and ports 80 and 443 must be open), renews it, redirects HTTP to HTTPS and
+# speaks TLS 1.2 or newer. For a name like "localhost" it uses its own local certificate instead.
+#
+# Caddy sets X-Forwarded-For itself and discards one sent by the client, so TRUSTED_PROXY_HOPS=1 is right.
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_HOST:localhost} {
+	encode zstd gzip
+
+	reverse_proxy web:3300 {
+		# Take an unhealthy web container out of rotation instead of sending it traffic.
+		health_uri /api/health
+		health_interval 15s
+		health_timeout 5s
+	}
+
+	# The app sets its own security headers and CSP; add nothing here that could conflict with them.
+	header -Server
+
+	log {
+		output stdout
+		format json
+	}
+}

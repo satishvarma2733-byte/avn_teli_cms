@@ -185,6 +185,12 @@ library inside exceljs, and they match only patterns written in our own code. No
 and forcing 11 breaks `glob` 7. It is listed in `pnpm.auditConfig.ignoreGhsas` (`avn_cms/package.json`): remove it once
 exceljs and typescript-eslint move to minimatch 11.
 
+**2026-11-23:** the audit reported one new high advisory: `effect` ≤3.22.0 (GHSA-7589-6fvf-x4pw, a denial of service in a
+regular expression built by `Schema.TemplateLiteral`). We do not use `effect` ourselves; it comes with Prisma's
+configuration tooling (`@prisma/config`), which reads our own `prisma.config.ts` and nothing a visitor sends. It is
+pinned to `^3.22.5` with a pnpm override (`avn_cms/package.json`); the audit is back to the one accepted advisory above.
+Remove the override when Prisma depends on a patched `effect` itself.
+
 ## 3. Internal penetration-test checklist
 
 Each category is a test that runs in `pnpm test` (the file is named); a finding is listed in §4.

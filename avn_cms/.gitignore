@@ -7,6 +7,9 @@ coverage/
 .env
 .env.*
 !.env.example
+!deploy/.env.production.example
+# Database backups written by deploy/backup.sh on a server.
+backups/
 packages/db/generated/
 test-results/
 playwright-report/

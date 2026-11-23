@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { buttonVariants } from '@/components/ui/button';
-import { Alert, Badge, Card, EmptyState, Skeleton } from '@/components/ui/primitives';
+import { Alert, Badge, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatDateTime } from '@/lib/format';
 
@@ -69,7 +69,7 @@ export function ImportList() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      <div {...scrollRegionProps('Imports')}>
         <table className="w-full min-w-[640px] text-sm">
           <caption className="sr-only">Imports, newest first</caption>
           <thead className="bg-surface text-left text-xs font-medium tracking-wide text-muted-foreground uppercase">

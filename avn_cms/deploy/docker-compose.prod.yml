@@ -1,0 +1,137 @@
+# aVn CMS on one server (a VPS, or any host that runs Docker): web, worker, Postgres, Redis, ClamAV and
+# a Caddy reverse proxy that gets and renews the HTTPS certificate by itself.
+#
+#   cp deploy/.env.production.example deploy/.env.production      # then fill it in
+#   sh deploy/deploy.sh                                           # build, migrate, start, health-check
+#
+# Only Caddy publishes ports (80 and 443). Postgres, Redis and ClamAV have no published port, so they
+# are never reachable from the internet. Documents need Cloudflare R2 (or another S3 API) and the
+# R2_* values; without them the rest of the CRM works and the vault says storage is not set up.
+# docs/DEPLOYMENT.md §4a explains every choice here and what to change for a managed database.
+name: avn-cms
+
+x-app: &app
+  image: avn-cms:${AVN_VERSION:-latest}
+  restart: unless-stopped
+  environment:
+    NODE_ENV: production
+    APP_URL: https://${APP_HOST}
+    DATABASE_URL: postgresql://avn_app:${AVN_APP_PASSWORD}@postgres:5432/avn_cms
+    DATABASE_OWNER_URL: postgresql://avn_owner:${POSTGRES_PASSWORD}@postgres:5432/avn_cms
+    REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    SESSION_SECRET: ${SESSION_SECRET}
+    ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+    # One proxy (Caddy) sits in front of the app and sets X-Forwarded-For.
+    TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+    MFA_REQUIRED_ROLES: ${MFA_REQUIRED_ROLES:-SUPER_ADMIN,TENANT_ADMIN}
+    METRICS_TOKEN: ${METRICS_TOKEN:-}
+    ACCESS_LOG: ${ACCESS_LOG:-errors}
+    SMTP_HOST: ${SMTP_HOST:-}
+    SMTP_PORT: ${SMTP_PORT:-}
+    SMTP_USER: ${SMTP_USER:-}
+    SMTP_PASS: ${SMTP_PASS:-}
+    SMTP_FROM: ${SMTP_FROM:-aVn CMS <no-reply@localhost>}
+    R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+    R2_BUCKET: ${R2_BUCKET:-}
+    R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+    R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+    CLAMAV_HOST: clamav
+    CLAMAV_PORT: '3310'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: avn_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: avn_cms
+      AVN_APP_PASSWORD: ${AVN_APP_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Creates the application role (no BYPASSRLS) with the password from the environment, once.
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U avn_owner -d avn_cms']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8.10-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD}']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s # the first start downloads the signature database
+
+  # Applies the migrations, then exits. The web app and the worker start only after it succeeded.
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: ['pnpm', 'db:migrate']
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    <<: *app
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    <<: *app
+    command: ['pnpm', '--filter', '@avn-cms/worker', 'start']
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    environment:
+      APP_HOST: ${APP_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # the certificate; keep it, or Let's Encrypt rate limits apply
+      - caddy-config:/config
+    depends_on:
+      web: { condition: service_healthy }
+
+volumes:
+  postgres-data:
+  redis-data:
+  clamav-data:
+  caddy-data:
+  caddy-config:

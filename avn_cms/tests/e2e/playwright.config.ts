@@ -34,6 +34,24 @@ const serverEnv: Record<string, string> = {
   R2_BUCKET: process.env['TEST_R2_BUCKET'] ?? process.env['R2_BUCKET'] ?? '',
 };
 
+/**
+ * Chromium by default (what CI installs). To run another engine, name it: `E2E_BROWSERS=firefox pnpm
+ * test:e2e:only`. Run one engine per invocation: the suite resets and seeds the database first, and
+ * its tests expect a fresh one (two engines in one run would meet each other's data).
+ */
+const DEVICES = {
+  chromium: devices['Desktop Chrome'],
+  firefox: devices['Desktop Firefox'],
+  webkit: devices['Desktop Safari'],
+} as const;
+type Browser = keyof typeof DEVICES;
+const BROWSERS = (process.env['E2E_BROWSERS'] ?? 'chromium')
+  .split(',')
+  .map((b) => b.trim())
+  .filter((b): b is Browser => b in DEVICES);
+if (BROWSERS.length !== 1)
+  throw new Error('E2E_BROWSERS must name exactly one of: chromium, firefox, webkit');
+
 // On GitHub each failure also becomes an annotation, which can be read without signing in (the log cannot).
 const githubAnnotations: ReporterDescription[] = process.env['GITHUB_ACTIONS'] ? [['github']] : [];
 
@@ -56,9 +74,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 900 } } },
-  ],
+  projects: BROWSERS.map((name) => ({
+    name,
+    use: { ...DEVICES[name], viewport: { width: 1366, height: 900 } },
+  })),
   webServer: {
     command: `pnpm exec next start -p ${E2E_PORT}`,
     cwd: fileURLToPath(new URL('../../apps/web', import.meta.url)),

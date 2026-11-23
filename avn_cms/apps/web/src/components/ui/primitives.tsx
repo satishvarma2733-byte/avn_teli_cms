@@ -3,6 +3,23 @@ import type { HTMLAttributes, ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
 
+/**
+ * Props for a box that scrolls sideways (a wide table inside its card). Without them a keyboard user
+ * cannot reach the hidden columns: the box is made focusable and named, so the arrow keys scroll it.
+ * Spread onto the scrolling element: `<div {...scrollRegionProps('Users')}>`.
+ */
+export function scrollRegionProps(label: string, className?: string) {
+  return {
+    role: 'region',
+    'aria-label': label,
+    tabIndex: 0,
+    className: cn(
+      'overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+      className,
+    ),
+  } as const;
+}
+
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn('rounded-card border border-border bg-surface shadow-card', className)} {...props} />

@@ -18,7 +18,7 @@ import { DocumentError, useDocumentDownload, useDocumentUpload } from '@/compone
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input } from '@/components/ui/field';
-import { Alert, Badge, Card, EmptyState, Skeleton } from '@/components/ui/primitives';
+import { Alert, Badge, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatDate } from '@/lib/format';
 
@@ -292,7 +292,7 @@ export function Vault() {
                 }
               />
             ) : (
-              <div className="relative overflow-x-auto">
+              <div {...scrollRegionProps('Files', 'relative')}>
                 <table className="w-full min-w-[640px] text-sm">
                   <caption className="sr-only">Files</caption>
                   <thead className="text-left text-xs font-medium tracking-wide text-muted-foreground uppercase">

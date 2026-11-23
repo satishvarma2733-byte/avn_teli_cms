@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 import { createClient } from '../../../packages/db/src/testing';
-import { as, expectAccessible, expectNoSidewaysScroll, testPhone } from './helpers';
+import { as, expectAccessible, expectNoSidewaysScroll, gotoReady, testPhone } from './helpers';
 
 /**
  * Phase 8: the five starter rules each fire for real (web lead routed, uncontacted lead flagged,
@@ -58,7 +58,7 @@ async function withOwner<T>(fn: (db: ReturnType<typeof createClient>) => Promise
 async function createLead(page: Page, label: string) {
   const phone = testPhone();
   const name = `${label} ${phone.slice(-4)}`;
-  await page.goto('/app/leads/new');
+  await gotoReady(page, '/app/leads/new');
   await page.getByLabel('Student name').fill(name);
   await page.getByLabel('Mobile number').fill(phone);
   await page.getByLabel('Source').selectOption({ label: 'Website' });

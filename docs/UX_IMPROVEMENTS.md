@@ -24,8 +24,13 @@
 
 - **Accessible by default.** WCAG A/AA checks (axe, serious and critical) run in the browser tests on the main pages;
   form errors name the field; focus is visible; charts have a table view and labels, never colour alone.
-- **Works at phone width.** The browser tests open the vault, exports, imports and the lead workspace at 375 px and
-  fail on sideways scrolling (an earlier regression there is recorded in `BUILD_STATUS.md`).
+- **Works at phone width.** The browser tests open **every screen** (17 admin pages, a lead's page, the platform
+  console, and the signed-out pages) at 390 px and at 768 px (`responsive.spec.ts`) and fail on sideways scrolling,
+  on a failed accessibility check, or when the menu button does not reach the navigation. A wide table scrolls inside
+  its card, and that card can be focused and scrolled with the keyboard (`scrollRegionProps` in
+  `components/ui/primitives.tsx`; the sweep found three tables without it, and all ten now have it).
+- **Plain words for missing fields.** A required box left empty says what to enter ("Enter the student’s name."), never a
+  validation library's own wording. The schemas carry the message for a missing field as well as an empty one.
 - **Honest empty, loading and error states.** "Storage is not set up" says so rather than failing silently; errors
   carry a short reference that matches the log; nothing says an email was sent when SMTP is off (the admin is shown
   the link instead).

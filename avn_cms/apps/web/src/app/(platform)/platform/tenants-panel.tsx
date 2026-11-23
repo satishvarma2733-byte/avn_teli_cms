@@ -11,7 +11,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/field';
-import { Alert, Badge, Card, CardHeader, EmptyState, type Tone } from '@/components/ui/primitives';
+import {
+  Alert,
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  type Tone,
+  scrollRegionProps,
+} from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatDate } from '@/lib/format';
 
@@ -83,7 +91,7 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
         {items.length === 0 ? (
           <EmptyState icon={<Building2 />} title="No agencies yet" />
         ) : (
-          <div className="overflow-x-auto">
+          <div {...scrollRegionProps('Agencies')}>
             <table className="w-full min-w-[720px] text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr className="border-b border-border">

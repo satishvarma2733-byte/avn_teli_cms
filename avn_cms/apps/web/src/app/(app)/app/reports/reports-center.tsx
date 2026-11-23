@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { BarList } from '@/components/charts';
 import { Input, Select } from '@/components/ui/field';
-import { Alert, Card, CardHeader, Skeleton, StatCard } from '@/components/ui/primitives';
+import { Alert, Card, CardHeader, Skeleton, StatCard, scrollRegionProps } from '@/components/ui/primitives';
 import { cn } from '@/lib/cn';
 import { useApi } from '@/lib/client';
 import { useDirectory } from '@/lib/use-directory';
@@ -237,7 +237,12 @@ export function ReportsCenter({ tenantWide }: { tenantWide: boolean }) {
                   note: `${s.conversionPct}% enrolled`,
                 }))}
               />
-              <div className="overflow-x-auto border-t border-border lg:border-l lg:border-t-0">
+              <div
+                {...scrollRegionProps(
+                  'Sources: volume and conversion',
+                  'border-t border-border lg:border-l lg:border-t-0',
+                )}
+              >
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <tr className="border-b border-border">
@@ -276,7 +281,7 @@ export function ReportsCenter({ tenantWide }: { tenantWide: boolean }) {
               title={tenantWide ? 'Team performance' : 'My numbers'}
               description="Leads currently assigned, enrolments and conversion; calls logged in the range."
             />
-            <div className="overflow-x-auto">
+            <div {...scrollRegionProps(tenantWide ? 'Team performance' : 'My numbers')}>
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr className="border-b border-border">

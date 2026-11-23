@@ -4,7 +4,7 @@ import { hashPassword } from '../../../packages/auth/src/password';
 import { totpAt } from '../../../packages/auth/src/totp';
 import { createClient } from '../../../packages/db/src/testing';
 import { E2E_PASSWORD } from '../global-setup';
-import { as, expectAccessible, pressSignIn, testPhone } from './helpers';
+import { as, expectAccessible, gotoReady, pressSignIn, testPhone } from './helpers';
 
 /**
  * Phase 9 in a real browser: the headers and CSP the pages really carry (and that nothing the app
@@ -27,7 +27,7 @@ async function withOwner<T>(fn: (db: ReturnType<typeof createClient>) => Promise
 }
 
 async function signIn(page: Page, email: string, password: string) {
-  await page.goto('/login');
+  await gotoReady(page, '/login');
   await page.getByLabel('Workspace').fill('demo');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
@@ -99,11 +99,15 @@ test.describe('headers', () => {
     test('the session cookie is httpOnly, SameSite and scoped to the whole site', async ({
       page,
       context,
+      browserName,
     }) => {
       await page.goto('/app/dashboard');
       const cookies = await context.cookies();
       const session = cookies.find((c) => c.name === 'avn_session')!;
-      expect(session).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/' });
+      expect(session).toMatchObject({ httpOnly: true, path: '/' });
+      // Playwright's WebKit reports a SameSite=Lax cookie as "None", so the attribute is asserted where
+      // the cookie API tells the truth.
+      if (browserName !== 'webkit') expect(session.sameSite).toBe('Lax');
       // The browser cannot read it, so a script on the page could not steal it.
       expect(await page.evaluate(() => document.cookie)).not.toContain('avn_session');
     });
@@ -177,7 +181,7 @@ test.describe('hostile text is shown as text', () => {
 
     // A student made through the form.
     const phone = testPhone();
-    await page.goto('/app/leads/new');
+    await gotoReady(page, '/app/leads/new');
     await page.getByLabel('Student name').fill(`${marker} ${hostile(1)}`);
     await page.getByLabel('Mobile number').fill(phone);
     await page.getByLabel('Source').selectOption({ label: 'Website' });
@@ -277,7 +281,7 @@ test.describe('hostile text is shown as text', () => {
 test.describe('signing in', () => {
   test('never follows a link to another site after sign-in', async ({ page }) => {
     // The browser reads "/\evil.example" as "//evil.example". It must be dropped, not followed.
-    await page.goto('/login?next=%2F%5Cevil.example');
+    await gotoReady(page, '/login?next=%2F%5Cevil.example');
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('counselor1@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
@@ -289,6 +293,7 @@ test.describe('signing in', () => {
   test('does take people back to the page they asked for', async ({ page }) => {
     await page.goto('/app/leads?status=NEW');
     await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fleads/);
+    await page.waitForLoadState('networkidle');
     await page.getByLabel('Workspace').fill('demo');
     await page.getByLabel('Email').fill('counselor1@demo.test');
     await page.getByLabel('Password').fill(E2E_PASSWORD);
