@@ -16,7 +16,7 @@ export default async function PlatformPage() {
     <>
       <PageHeader
         title="Platform"
-        description="Agencies on aVn CMS. Totals only — opening an agency's data requires audited impersonation."
+        description="Agencies on aVn CMS. Totals only here: to see an agency’s records, use Open as admin, which is recorded in that agency’s audit log."
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Agencies" value={m.tenants} />

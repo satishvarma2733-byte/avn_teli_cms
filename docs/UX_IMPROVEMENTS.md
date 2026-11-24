@@ -2,7 +2,7 @@
 
 > A running list of what was improved over the original LeadXP tool, what the browser tests protect, and what is
 > still rough. Status: **Done** (built and tested), **Open** (known gap, scheduled in `IMPROVEMENT_ROADMAP.md`),
-> **Idea** (worth trying, needs a decision or user research). Updated at the end of each phase; last update Phase 10.
+> **Idea** (worth trying, needs a decision or user research). Updated at the end of each phase; last update 2026-11-24 (a screen-by-screen walkthrough as every role, §5).
 
 ## 1. Improvements over the original, now in the product
 
@@ -19,6 +19,11 @@
 | Big lists | Slow with many rows | 50 rows per page, virtualised rows, keyset paging; a total that says "1,000+" instead of making the page wait | Done |
 | Roles | Hidden buttons | Telecallers see a reduced student view; the server enforces it everywhere | Done |
 | Documents | None in the app | Per-student checklist and folder vault, scan status shown on every file | Done |
+| Timeline and dashboard text | Machine values: `2026-10-19T15:25:00.000Z`, `FOLLOW_UP_REQUIRED`, `phoneE164` | The agency's own clock ("17 Jan 2030, 9:00 am"), stage and outcome names, plain field names; lines written before this are cleaned up when shown | Done |
+| Audit log | Action codes and raw JSON | The action in words with its code beneath, the record with "Open student" and "Only this record", one line per changed field, the raw values one click away; a filter for every area | Done |
+| An empty call queue | "No calls here" while 29 calls were overdue | "Today is clear, but some calls from earlier days are still waiting" and a "See 29 overdue calls" button | Done |
+| Assignment pickers | Showed "Unassigned" until the names loaded, and for someone since deactivated; "Unassigned", "None" and "Auto / none" for the same thing | The assigned person shows at once (a former member too); one word, "Unassigned" | Done |
+| Labels | Lowercase codes ("tenant admin", "converted"), "This month is 2026-11", "15 Oct, 8:18 pm · 15 Oct 2026" | One role name everywhere, capitalised statuses, "November 2026", "40 days ago" | Done |
 
 ## 2. Design rules the interface follows (and tests check)
 
@@ -29,6 +34,9 @@
   on a failed accessibility check, or when the menu button does not reach the navigation. A wide table scrolls inside
   its card, and that card can be focused and scrolled with the keyboard (`scrollRegionProps` in
   `components/ui/primitives.tsx`; the sweep found three tables without it, and all ten now have it).
+- **Plain words, never machine values.** Text stored for people (timeline lines) is written in the agency's time zone
+  with the product's names; codes, timestamps and ids stay in the data and the raw view of the audit log
+  (`readableSummary`, `formatInTz`, `ROLE_LABEL` and the audit `describe` module, each with unit tests).
 - **Plain words for missing fields.** A required box left empty says what to enter ("Enter the student’s name."), never a
   validation library's own wording. The schemas carry the message for a missing field as well as an empty one.
 - **Honest empty, loading and error states.** "Storage is not set up" says so rather than failing silently; errors
@@ -54,6 +62,7 @@
 | Search is a single box over name, parent and phone | Fine for finding a person; no "phone starts with", no saved searches | P2 |
 | First-run experience | A new agency lands on an empty dashboard; a checklist (add people, add a source, connect a website, import) would help | P1 |
 | No in-app help or changelog | | P3 |
+| The usage month on Settings is counted in UTC | In India the first 5½ hours of a month count towards the month before | P3 |
 
 ## 4. Ideas to test with real users
 
@@ -64,7 +73,16 @@
 - Hindi and regional-language UI strings; agencies' staff are comfortable in English, families are not.
 - Mobile-first telecaller screen as an installable web app.
 
-## 5. How this list is kept
+## 5. Walkthrough of 2026-11-24
+
+Every screen was opened on a production build as an admin, a counselor, a telecaller and the platform admin, and the
+call queue and a student page at phone width. Fixed: the rows added to §1 above, a report card that said "leads
+currently assigned" while counting only leads created in the chosen range (now says so), and wording on the platform
+console ("Open as admin" instead of "audited impersonation"). Checked and found correct: field labels on sign-in, the
+"Mark all as read" button (disabled when nothing is unread), the menu per role, tap-to-call on the queue and the
+student page, the overdue colour on next calls in the list. One gap went to §3: the usage month on Settings is counted in UTC.
+
+## 6. How this list is kept
 
 Each phase adds the improvements it ships to §1 and the gaps it finds to §3, with the browser test that protects the
 behaviour. User research (shadowing a telecaller for a day, a counselor review of the timeline) is the main thing

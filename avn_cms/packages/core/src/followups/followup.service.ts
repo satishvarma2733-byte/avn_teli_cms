@@ -16,7 +16,7 @@ import { audit } from '../shared/audit';
 import type { Ctx } from '../shared/context';
 import { conflict, forbidden, invalid, notFound } from '../shared/errors';
 import { decodeKeyset, encodeKeyset, keysetWhere } from '../shared/pagination';
-import { dayBounds } from '../shared/time';
+import { dayBounds, formatInTz } from '../shared/time';
 import { loadSettings } from '../tenants/settings';
 
 type ListQuery = z.output<typeof followupListQuerySchema>;
@@ -181,6 +181,7 @@ export async function schedule(ctx: Ctx, dto: CreateDTO) {
       throw forbidden('You can only schedule calls for yourself or this lead’s team.');
     }
     const caller = await assertCaller(db, assigneeId);
+    const { timezone } = await loadSettings(db);
     const fu = await db.followUp.create({
       data: {
         leadId: lead.id,
@@ -197,7 +198,7 @@ export async function schedule(ctx: Ctx, dto: CreateDTO) {
       leadId: lead.id,
       type: 'SYSTEM',
       actorId: ctx.userId,
-      summary: `Call scheduled for ${at.toISOString()} with ${caller.name}${dto.note ? ` — ${dto.note}` : ''}`,
+      summary: `Call scheduled for ${formatInTz(at, timezone)} with ${caller.name}${dto.note ? ` — ${dto.note}` : ''}`,
       payload: {
         followUpId: fu.id,
         scheduledAt: at.toISOString(),
@@ -285,12 +286,13 @@ export async function update(ctx: Ctx, followUpId: string, dto: UpdateDTO) {
           } as Prisma.FollowUpUncheckedCreateInput,
         });
         result.nextFollowUpId = next.id;
+        const { timezone } = await loadSettings(db);
         await recordActivity(db, {
           studentId: lead.studentId,
           leadId: lead.id,
           type: 'SYSTEM',
           actorId: ctx.userId,
-          summary: `Next call booked for ${nextAt.toISOString()}`,
+          summary: `Next call booked for ${formatInTz(nextAt, timezone)}`,
           payload: { followUpId: next.id, scheduledAt: nextAt.toISOString() },
         });
       }
@@ -298,6 +300,7 @@ export async function update(ctx: Ctx, followUpId: string, dto: UpdateDTO) {
       if (!can(ctx, 'followup:schedule', resource)) throw forbidden();
       if (fu.completedAt) throw conflict('A logged call can’t be rescheduled. Schedule a new one.');
       const at = new Date(dto.scheduledAt);
+      const { timezone } = await loadSettings(db);
       await db.followUp.updateMany({
         where: { id: fu.id },
         data: { scheduledAt: at, isOverdue: false, ...(dto.priority ? { priority: dto.priority } : {}) },
@@ -307,7 +310,7 @@ export async function update(ctx: Ctx, followUpId: string, dto: UpdateDTO) {
         leadId: lead.id,
         type: 'SYSTEM',
         actorId: ctx.userId,
-        summary: `Call rescheduled to ${at.toISOString()}`,
+        summary: `Call rescheduled to ${formatInTz(at, timezone)}`,
         payload: { followUpId: fu.id, from: fu.scheduledAt.toISOString(), to: at.toISOString() },
       });
       await audit(

@@ -21,7 +21,7 @@ import {
   scrollRegionProps,
 } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
-import { formatDate } from '@/lib/format';
+import { formatDate, humanizeCode } from '@/lib/format';
 
 interface Tenant {
   id: string;
@@ -112,7 +112,7 @@ export function TenantsPanel({ initial }: { initial: Tenant[] }) {
                       <div className="text-xs text-muted-foreground">{t.slug}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge tone={TONE[t.status]}>{t.status.toLowerCase()}</Badge>
+                      <Badge tone={TONE[t.status]}>{humanizeCode(t.status)}</Badge>
                     </td>
                     <td className="px-4 py-3">{t.plan?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{of(t.users, t.limits.users)}</td>

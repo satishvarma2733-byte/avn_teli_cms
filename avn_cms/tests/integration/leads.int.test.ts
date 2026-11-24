@@ -351,6 +351,42 @@ describe('follow-ups', () => {
     expect((await ownerDb().lead.findUniqueOrThrow({ where: { id: lead.id } })).nextCallAt).toBeNull();
   });
 
+  it('timeline lines give call times in the agency’s time zone and contact changes in words', async () => {
+    const { lead, student } = await makeLead(tenant.id, {
+      counselorId: counselor.id,
+      telecallerId: telecaller.id,
+    });
+    const summaries = async () =>
+      (await ownerDb().activity.findMany({ where: { leadId: lead.id }, orderBy: { createdAt: 'asc' } })).map(
+        (a) => a.summary,
+      );
+
+    // Default zone (Asia/Kolkata): 05:00 UTC is 10:30 am there.
+    const { id } = await followups.schedule(ctxFor(counselor), {
+      leadId: lead.id,
+      scheduledAt: '2030-01-15T05:00:00.000Z',
+    });
+    expect(await summaries()).toContain(`Call scheduled for 15 Jan 2030, 10:30 am with ${telecaller.name}`);
+
+    // An agency in Dubai reads its own clock.
+    await ownerDb().tenant.update({
+      where: { id: tenant.id },
+      data: { settings: { timezone: 'Asia/Dubai' } },
+    });
+    await followups.update(ctxFor(counselor), id, { scheduledAt: '2030-01-16T05:00:00.000Z' });
+    await followups.update(ctxFor(telecaller), id, {
+      disposition: 'CALL_BACK_LATER',
+      nextCallAt: '2030-01-17T05:00:00.000Z',
+    });
+    const lines = await summaries();
+    expect(lines).toContain('Call rescheduled to 16 Jan 2030, 9:00 am');
+    expect(lines).toContain('Next call booked for 17 Jan 2030, 9:00 am');
+    expect(lines.join('\n')).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+
+    await leads.updateStudent(ctxFor(counselor), student.id, { phone: '9123456781', parentName: 'R. Rao' });
+    expect(await summaries()).toContain('Contact details updated (phone, parent’s name)');
+  });
+
   it('callers cannot book calls for people outside the lead’s team', async () => {
     const { lead } = await makeLead(tenant.id, { counselorId: counselor.id, telecallerId: telecaller.id });
     await expect(

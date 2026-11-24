@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { BarList } from '@/components/charts';
 import { StageBadge } from '@/components/leads/stage-badge';
 import { Badge, Card, CardHeader, EmptyState, PageHeader, StatCard } from '@/components/ui/primitives';
-import { formatPhone, formatRelative, formatTime } from '@/lib/format';
+import { formatPhone, formatRelative, formatTime, readableSummary } from '@/lib/format';
 import { requireTenantPage } from '@/lib/session';
 
 import { TrendLabel } from './trend-label';
@@ -208,7 +208,7 @@ export default async function DashboardPage() {
                     ) : (
                       <span className="font-medium">{a.student.name}</span>
                     )}{' '}
-                    <span className="text-muted-foreground">— {a.summary}</span>
+                    <span className="text-muted-foreground">— {readableSummary(a.summary)}</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {a.actorName} · {formatRelative(a.createdAt)}

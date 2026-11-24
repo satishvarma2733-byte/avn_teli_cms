@@ -10,6 +10,14 @@ const bytes = (b: number) =>
     ? `${(b / 1024 ** 3).toFixed(1)} GB`
     : `${Math.max(0, Math.round(b / 1024 ** 2)).toLocaleString('en-IN')} MB`;
 
+/** "2026-11" → "November 2026" (the period is a calendar month, so it is read in UTC). */
+function monthName(period: string): string {
+  const d = new Date(`${period}-01T00:00:00Z`);
+  return Number.isNaN(d.getTime())
+    ? period
+    : new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+}
+
 function show(line: Usage['lines'][number], value: number): string {
   return line.key === 'storage' ? bytes(value) : value.toLocaleString('en-IN');
 }
@@ -21,7 +29,7 @@ export function UsageCard({ data }: { data: Usage }) {
     <Card className="mb-6">
       <CardHeader
         title="Plan and usage"
-        description={`This month is ${data.period}. Counts are measured from your workspace’s own records.`}
+        description={`Usage for ${monthName(data.period)}. Counts are measured from your workspace’s own records.`}
         actions={<Badge tone="primary">{data.plan ? `${data.plan.name} plan` : 'No plan limits'}</Badge>}
       />
       <div className="space-y-4 p-5">

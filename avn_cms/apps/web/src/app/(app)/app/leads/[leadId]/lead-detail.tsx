@@ -26,7 +26,7 @@ import { Select, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/primitives';
 import { cn } from '@/lib/cn';
 import { useApi } from '@/lib/client';
-import { formatDate, formatDateTime, formatPhone, formatRelative } from '@/lib/format';
+import { formatDate, formatDateTime, formatPhone, formatRelative, readableSummary } from '@/lib/format';
 import { useDirectory } from '@/lib/use-directory';
 
 import { ContactDialog, LogCallDialog, ScheduleDialog, StageDialog } from './lead-dialogs';
@@ -438,6 +438,18 @@ function Item({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+/**
+ * The picker's options with the person already assigned in them, so the select shows that name at
+ * once (not "Unassigned" until the list loads) and still shows someone who has since left the team.
+ */
+function withCurrent<T extends { id: string; name?: string }>(
+  options: T[],
+  current: { id: string; name: string | null } | null | undefined,
+): { id: string; name?: string }[] {
+  if (!current || options.some((o) => o.id === current.id)) return options;
+  return [{ id: current.id, name: current.name ?? 'Former team member' }, ...options];
+}
+
 function AssignmentCard({
   lead,
   onChanged,
@@ -448,8 +460,14 @@ function AssignmentCard({
   onError: (m: string) => void;
 }) {
   const api = useApi();
-  const counselors = useDirectory('counselors', lead.permissions.assignCounselor);
-  const telecallers = useDirectory('telecallers', lead.permissions.assignTelecaller);
+  const counselors = withCurrent(
+    useDirectory('counselors', lead.permissions.assignCounselor),
+    lead.counselor,
+  );
+  const telecallers = withCurrent(
+    useDirectory('telecallers', lead.permissions.assignTelecaller),
+    lead.telecaller,
+  );
   const [busy, setBusy] = useState(false);
 
   async function assign(field: 'counselorId' | 'telecallerId', value: string) {
@@ -493,7 +511,7 @@ function AssignmentCard({
               disabled={busy}
               onChange={(e) => assign('telecallerId', e.target.value)}
             >
-              <option value="">None</option>
+              <option value="">Unassigned</option>
               {telecallers.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
@@ -501,7 +519,7 @@ function AssignmentCard({
               ))}
             </Select>
           ) : (
-            <p>{lead.telecaller?.name ?? 'None'}</p>
+            <p>{lead.telecaller?.name ?? 'Unassigned'}</p>
           )}
         </div>
         {lead.assignmentHistory.some((a) => !a.isActive) && (
@@ -568,6 +586,18 @@ const TYPE_TONE: Record<string, 'primary' | 'success' | 'info' | 'warning' | 'ne
   SYSTEM: 'neutral',
 };
 
+const TYPE_LABEL: Record<string, string> = {
+  CALL: 'Call',
+  WHATSAPP: 'WhatsApp',
+  EMAIL: 'Email',
+  SMS: 'SMS',
+  NOTE: 'Note',
+  STATUS_CHANGE: 'Stage',
+  ASSIGNMENT: 'Assignment',
+  DOCUMENT: 'Document',
+  SYSTEM: 'Update',
+};
+
 function Timeline({ leadId }: { leadId: string }) {
   const api = useApi();
   const [items, setItems] = useState<TimelineItem[] | null>(null);
@@ -609,12 +639,12 @@ function Timeline({ leadId }: { leadId: string }) {
               aria-hidden
             />
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={TYPE_TONE[i.type] ?? 'neutral'}>{i.type.replace('_', ' ').toLowerCase()}</Badge>
+              <Badge tone={TYPE_TONE[i.type] ?? 'neutral'}>{TYPE_LABEL[i.type] ?? i.type}</Badge>
               <span className="text-xs text-muted-foreground">
                 {i.actorName} · {formatDateTime(i.createdAt)}
               </span>
             </div>
-            <p className="mt-1 whitespace-pre-wrap text-sm">{i.summary}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">{readableSummary(i.summary)}</p>
           </li>
         ))}
       </ol>

@@ -54,6 +54,8 @@ test.describe('admin manages users', () => {
     await expectAccessible(page);
     await page.goto('/app/audit');
     await expect(page.getByText('user.create').first()).toBeVisible();
+    // Each entry is named in plain words, with its code alongside for searching.
+    await expect(page.getByText('Team member added').first()).toBeVisible();
     await expectAccessible(page);
     await page.goto('/app/account');
     await expect(page.getByRole('heading', { name: 'Two-step verification' })).toBeVisible();

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { proxy } from './proxy';
 
@@ -20,6 +20,7 @@ describe('the page security policy', () => {
     process.env['APP_URL'] = env['APP_URL'];
     delete process.env['R2_ENDPOINT'];
     delete process.env['R2_ACCOUNT_ID'];
+    vi.unstubAllEnvs();
   });
 
   it('allows scripts only from our own files and a nonce made for this request', () => {
@@ -38,6 +39,18 @@ describe('the page security policy', () => {
     expect(csp['style-src']).not.toContain("'unsafe-inline'");
     expect(csp['style-src']!.some((v) => v.startsWith("'nonce-"))).toBe(true);
     expect(csp['style-src-attr']).toEqual(["'unsafe-inline'"]);
+  });
+
+  it('relaxes style elements in development only, where the dev server adds them without a nonce', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const dev = directives(get('/login').headers.get('content-security-policy')!);
+    // With a nonce present browsers ignore 'unsafe-inline', so the dev policy must not carry one.
+    expect(dev['style-src']).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(dev['script-src']).not.toContain("'unsafe-inline'");
+    vi.stubEnv('NODE_ENV', 'production');
+    const prod = directives(get('/login').headers.get('content-security-policy')!);
+    expect(prod['style-src']).not.toContain("'unsafe-inline'");
+    expect(prod['style-src']!.some((v) => v.startsWith("'nonce-"))).toBe(true);
   });
 
   it('shuts everything else: no framing, plugins, workers, media, other forms or other base address', () => {

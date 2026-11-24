@@ -37,11 +37,13 @@ export function proxy(request: NextRequest) {
   const https = (process.env.APP_URL ?? '').startsWith('https://');
   // Scripts and style elements need the per-request nonce or our own origin; only style *attributes*
   // (charts and the virtual table set them) are allowed inline. Everything else is same-origin, and
-  // nothing may be framed, embedded, run as a worker or play media.
+  // nothing may be framed, embedded, run as a worker or play media. In development only, the dev
+  // server injects style elements without the nonce; a nonce in the list would make browsers ignore
+  // 'unsafe-inline', so the development policy carries 'unsafe-inline' instead of the nonce.
   const csp = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? ` 'unsafe-eval'` : ''}`,
-    `style-src 'self' 'nonce-${nonce}'${isDev ? ` 'unsafe-inline'` : ''}`,
+    `style-src 'self' ${isDev ? `'unsafe-inline'` : `'nonce-${nonce}'`}`,
     `style-src-attr 'unsafe-inline'`,
     `img-src 'self' blob: data:`,
     `font-src 'self'`,

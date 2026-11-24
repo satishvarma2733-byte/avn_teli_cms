@@ -9,6 +9,7 @@ import { Input, Select } from '@/components/ui/field';
 import { Alert, Card, CardHeader, Skeleton, StatCard, scrollRegionProps } from '@/components/ui/primitives';
 import { cn } from '@/lib/cn';
 import { useApi } from '@/lib/client';
+import { roleLabel } from '@/lib/format';
 import { useDirectory } from '@/lib/use-directory';
 
 interface Data {
@@ -279,7 +280,7 @@ export function ReportsCenter({ tenantWide }: { tenantWide: boolean }) {
           <Card>
             <CardHeader
               title={tenantWide ? 'Team performance' : 'My numbers'}
-              description="Leads currently assigned, enrolments and conversion; calls logged in the range."
+              description="Leads created in the range, counted for whoever holds them now, with enrolments and conversion; calls logged in the range."
             />
             <div {...scrollRegionProps(tenantWide ? 'Team performance' : 'My numbers')}>
               <table className="w-full min-w-[760px] text-sm">
@@ -301,9 +302,7 @@ export function ReportsCenter({ tenantWide }: { tenantWide: boolean }) {
                   {data.team.map((r) => (
                     <tr key={r.userId} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 font-medium">{r.name}</td>
-                      <td className="px-4 py-2 text-muted-foreground">
-                        {r.role.replace('_', ' ').toLowerCase()}
-                      </td>
+                      <td className="px-4 py-2 text-muted-foreground">{roleLabel(r.role)}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{r.leads}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{r.active}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{r.enrolled}</td>

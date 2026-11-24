@@ -11,7 +11,7 @@ import { Field, Input, Select } from '@/components/ui/field';
 import { Alert, Badge, Card, EmptyState, Skeleton, type Tone } from '@/components/ui/primitives';
 import { cn } from '@/lib/cn';
 import { useApi } from '@/lib/client';
-import { formatDateTime, formatPhone, formatRelative } from '@/lib/format';
+import { formatDateTime, formatPhone, formatRelative, humanizeCode } from '@/lib/format';
 import { useDirectory } from '@/lib/use-directory';
 
 type Status = 'NEW' | 'DUPLICATE' | 'CONVERTED' | 'SPAM' | 'REJECTED';
@@ -194,7 +194,7 @@ export function WebLeadsInbox({ isAdmin }: { isAdmin: boolean }) {
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{w.name}</span>
-                    <Badge tone={STATUS_TONE[w.status]}>{w.status.toLowerCase()}</Badge>
+                    <Badge tone={STATUS_TONE[w.status]}>{humanizeCode(w.status)}</Badge>
                     {w.qualityFlags.map((f) => (
                       <Badge key={f} tone="warning">
                         {FLAG_LABEL[f] ?? f}
@@ -374,7 +374,7 @@ function ConvertDialog({
                 value={telecallerId}
                 onChange={(e) => setTelecallerId(e.target.value)}
               >
-                <option value="">None</option>
+                <option value="">Unassigned</option>
                 {telecallers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}

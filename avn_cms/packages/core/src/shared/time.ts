@@ -55,6 +55,21 @@ export function localToUtc(tz: string, y: number, mo: number, d: number, h = 0, 
   return new Date(t);
 }
 
+/**
+ * An instant as people read it in the agency's time zone, e.g. "25 Nov 2026, 10:30 am".
+ * Used for text that is stored (timeline lines), so it must not depend on the server's zone.
+ */
+export function formatInTz(at: Date, tz: string = DEFAULT_TZ): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: tz,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(at);
+}
+
 export function tenantTimezone(settings: unknown): string {
   const tz = (settings as { timezone?: unknown } | null)?.timezone;
   if (typeof tz === 'string') {

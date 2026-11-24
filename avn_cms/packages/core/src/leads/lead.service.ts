@@ -680,6 +680,19 @@ export async function updateLead(ctx: Ctx, leadId: string, dto: LeadUpdateDTO) {
   });
 }
 
+/** How a changed contact field is named on the timeline (phoneRaw travels with the phone). */
+const CONTACT_FIELD_LABEL: Record<string, string> = {
+  name: 'name',
+  parentName: 'parent’s name',
+  phoneE164: 'phone',
+  altPhoneE164: 'alternate phone',
+  email: 'email',
+  town: 'town',
+  district: 'district',
+  state: 'state',
+  address: 'address',
+};
+
 export async function updateStudent(ctx: Ctx, studentId: string, dto: StudentUpdateDTO) {
   return withTenant(ctx.tenantId, async (db) => {
     const student = await loadStudent(db, ctx, studentId, 'student:update');
@@ -728,7 +741,7 @@ export async function updateStudent(ctx: Ctx, studentId: string, dto: StudentUpd
       type: 'SYSTEM',
       actorId: ctx.userId,
       summary: `Contact details updated (${Object.keys(data)
-        .filter((k) => k !== 'phoneRaw')
+        .flatMap((k) => CONTACT_FIELD_LABEL[k] ?? [])
         .join(', ')})`,
     });
     const possibleDuplicateEmail = dto.email

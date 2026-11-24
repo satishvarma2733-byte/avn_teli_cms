@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from './errors';
 import { afterCursor, decodeCursor, encodeCursor, pageOf } from './pagination';
 import { toE164 } from './phone';
+import { formatInTz } from './time';
 
 describe('toE164', () => {
   it('normalises Indian numbers written different ways', () => {
@@ -15,6 +16,15 @@ describe('toE164', () => {
   });
   it('keeps foreign numbers that carry a country code', () => {
     expect(toE164('+996 555 123 456')).toBe('+996555123456');
+  });
+});
+
+describe('formatInTz', () => {
+  it('writes an instant in the agency’s zone, not the server’s', () => {
+    const at = new Date('2026-11-25T05:00:00Z');
+    expect(formatInTz(at, 'Asia/Kolkata')).toBe('25 Nov 2026, 10:30 am');
+    expect(formatInTz(at, 'Asia/Dubai')).toBe('25 Nov 2026, 9:00 am');
+    expect(formatInTz(at)).toBe('25 Nov 2026, 10:30 am');
   });
 });
 

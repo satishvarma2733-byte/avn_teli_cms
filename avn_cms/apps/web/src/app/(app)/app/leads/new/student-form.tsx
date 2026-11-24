@@ -214,7 +214,7 @@ export function StudentForm({ isAdmin }: { isAdmin: boolean }) {
             <div className="space-y-4 p-5">
               <Field id="counselorId" label="Counselor" error={errors['counselorId']}>
                 <Select id="counselorId" value={val('counselorId')} onChange={set('counselorId')}>
-                  <option value="">Auto / none</option>
+                  <option value="">Unassigned</option>
                   {counselors.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
@@ -224,7 +224,7 @@ export function StudentForm({ isAdmin }: { isAdmin: boolean }) {
               </Field>
               <Field id="telecallerId" label="Telecaller" error={errors['telecallerId']}>
                 <Select id="telecallerId" value={val('telecallerId')} onChange={set('telecallerId')}>
-                  <option value="">None</option>
+                  <option value="">Unassigned</option>
                   {telecallers.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}

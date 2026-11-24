@@ -53,15 +53,15 @@ All ten phases of `DEVELOPMENT_PHASES.md` are implemented and verified locally (
 | Observability and operations | Verified | `X-Request-Id` on every API answer, JSON access/error logs, `instrumentation.ts` render errors, worker heartbeat, `/api/health` with `worker`, `/api/metrics` (Prometheus), restore drill, runbook. `RUNBOOK.md` |
 | CI (lint, types, formatting, unit, integration, browser) and security scans (dependencies, secrets, CodeQL) | **Verified on GitHub** (2026-11-05) | CI #28 on `de6178e` passed every step on ubuntu-latest: lint, formatting, types, services, unit, integration and all 50 browser tests; Security #31 passed. Until then every run since phase 9 had failed (see Known issues). Browser-test failures show as annotations |
 
-## Tests (actual results, 2026-11-23, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5; the same suites passed on GitHub CI on 2026-11-06)
+## Tests (actual results, 2026-11-24, local Windows 11, Node 24.14, Postgres 17, Next.js 16.4.5; the same suites passed on GitHub CI on 2026-11-06)
 
 | Suite | Command | Result |
 |---|---|---|
 | Lint (incl. architecture import boundaries) | `pnpm lint` | pass, 0 warnings |
 | Format | `pnpm format:check` | pass |
 | Typecheck (6 packages) | `pnpm typecheck` | pass |
-| Unit | `pnpm test:unit` | **304 passed** (plain messages for missing required fields; zip-bomb limits for .xlsx imports; the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
-| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **255 passed in 26 files** (plan limits under parallel requests; time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
+| Unit | `pnpm test:unit` | **317 passed** (plain messages for missing required fields; zip-bomb limits for .xlsx imports; the answer cache, request metrics, log and heartbeat helpers and plan-limit parsing added in Phase 10; RBAC matrix, TOTP RFC 6238 vectors, crypto, phone, cursors, intake normaliser, tenant-model list, import parsing and mapping, document types, file signatures, the clamd protocol, automation definitions and matching, client address and redirect rules, password rules, recovery codes, page security policy, code rules for routes and pages) |
+| Integration (real Postgres, RLS; the queue test also needs the docker Redis, the documents tests MinIO and ClamAV) | `pnpm test:integration` | **256 passed in 26 files** (plan limits under parallel requests; time limits on mail and storage servers that stop answering; Phase 10 added lead search and totals, the big-workspace reports and cache, plans and usage over HTTP, and operations: health, metrics, heartbeat, request ids, the cache on real Redis; tenancy, auth, leads, follow-ups, web-leads contract, reports, users/platform, health, imports incl. the 50k-row run, exports, recovery of cut-off jobs, the job queue on real Redis, documents, automation, the after-commit hook, two-step verification and session lifetime, the request gate on every route, cross-workspace and role checks on every route) |
 | End-to-end (production build, Chromium, axe WCAG A/AA serious+critical) | `pnpm test:e2e` | **99 passed in Chromium** (13 spec files; also **94 in Firefox and 94 in WebKit**, 5 Chromium-only timing tests skipped there: `E2E_BROWSERS=firefox|webkit pnpm test:e2e:only`); **every screen at phone and tablet width** and page-load budgets (`responsive.spec.ts`, `performance.spec.ts`); sign-in, automation, leads, RBAC, security headers/CSP/XSS/redirects/two-step verification, users, web-leads intake, import wizard incl. a cut-off import and start over, exports, documents; Phase 10 added plan and usage, including a platform plan change, and a telecaller working the call queue) |
 | Production build | `pnpm build` | pass (all pages dynamic for CSP nonces) |
 | HTTP smoke, LeadXP-compatible intake | `pnpm smoke:webleads --url http://localhost:3300 --tenant demo` | 7/7 (246 ms first request) |
@@ -86,6 +86,14 @@ Open (owner): an independent penetration test and a scan of staging (OWASP ZAP);
 
 ## Known issues
 
+- **Walkthrough as every role, found and fixed (2026-11-24):** timeline lines were stored with ISO timestamps
+  ("Next call booked for 2026-10-19T15:25:00.000Z") and database field names; they are now written in the agency's
+  time zone with plain names, and older lines are cleaned up when shown. The audit log showed codes and raw JSON; it
+  now reads in words with the raw values one click away. In `pnpm dev` every page logged about 140 style errors: the dev
+  server adds style elements without the nonce, and a nonce in the policy makes browsers ignore `'unsafe-inline'`; the
+  development policy now carries `'unsafe-inline'` without the nonce, and the production policy is unchanged
+  (`proxy.test.ts`). Also: assignment pickers that showed "Unassigned" until names loaded, an empty call queue that hid
+  29 overdue calls, a report card that described its count wrongly. Full list: `UX_IMPROVEMENTS.md` §1 and §5.
 - **Phase 10, found and fixed (2026-10-17):** row-level security makes Postgres ignore the trigram indexes for the
   application role, so every student search was a table scan (3–6 s at a million leads); search now runs in a
   tenant-locked `SECURITY DEFINER` function (`SECURITY.md` §2.3, `DATABASE_SCHEMA.md`). Also: a list total used

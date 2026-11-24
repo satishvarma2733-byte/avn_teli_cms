@@ -180,9 +180,24 @@ export function FollowupQueue({
                 ? 'Nothing overdue'
                 : bucket === 'closed'
                   ? 'No logged calls yet'
-                  : 'No calls here'
+                  : bucket === 'today'
+                    ? 'No calls left for today'
+                    : 'No calls here'
             }
-            description={bucket === 'today' ? 'Calls scheduled for today appear here.' : undefined}
+            description={
+              bucket === 'today'
+                ? (counts['overdue'] ?? 0) > 0
+                  ? 'Today is clear, but some calls from earlier days are still waiting.'
+                  : 'Calls scheduled for today appear here.'
+                : undefined
+            }
+            action={
+              bucket !== 'overdue' && bucket !== 'closed' && (counts['overdue'] ?? 0) > 0 ? (
+                <Button variant="secondary" size="sm" onClick={() => setParam('bucket', 'overdue')}>
+                  See {counts['overdue']} overdue call{counts['overdue'] === 1 ? '' : 's'}
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
           <ul className="divide-y divide-border">

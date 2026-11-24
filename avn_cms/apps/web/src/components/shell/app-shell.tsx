@@ -28,6 +28,7 @@ import { Brand } from '@/components/brand';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { useApi } from '@/lib/client';
+import { roleLabel } from '@/lib/format';
 
 import type { NavIcon, NavItem } from './nav';
 
@@ -46,13 +47,6 @@ const ICONS: Record<NavIcon, typeof LayoutDashboard> = {
   audit: ScrollText,
   settings: Settings,
   account: UserCircle,
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  TENANT_ADMIN: 'Tenant Admin',
-  COUNSELOR: 'Counselor',
-  TELECALLER: 'Telecaller',
 };
 
 /** Event the notifications page fires after it marks things read, so the badge updates at once. */
@@ -171,7 +165,7 @@ export function AppShell({
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{ROLE_LABEL[user.role] ?? user.role}</p>
+            <p className="truncate text-xs text-muted-foreground">{roleLabel(user.role)}</p>
           </div>
           <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out" title="Sign out">
             <LogOut />

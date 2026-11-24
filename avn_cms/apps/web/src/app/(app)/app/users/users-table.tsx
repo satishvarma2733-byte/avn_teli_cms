@@ -10,7 +10,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/field';
 import { Alert, Badge, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
-import { formatRelative } from '@/lib/format';
+import { formatRelative, roleLabel } from '@/lib/format';
 
 interface User {
   id: string;
@@ -24,12 +24,6 @@ interface User {
   activeLeads: number;
   openCalls: number;
 }
-
-const ROLE: Record<string, string> = {
-  TENANT_ADMIN: 'Admin',
-  COUNSELOR: 'Counselor',
-  TELECALLER: 'Telecaller',
-};
 
 type InviteResult = { emailed: true } | { emailed: false; link: string };
 
@@ -131,7 +125,7 @@ export function UsersTable({ currentUserId }: { currentUserId: string }) {
                       </div>
                       <div className="text-xs text-muted-foreground">{u.email}</div>
                     </td>
-                    <td className="px-4 py-3">{ROLE[u.roleCode]}</td>
+                    <td className="px-4 py-3">{roleLabel(u.roleCode)}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{u.activeLeads}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{u.openCalls}</td>
                     <td className="px-4 py-3 text-muted-foreground">
@@ -431,7 +425,7 @@ function TransferDialog({
         <Select id="t-to" value={to} onChange={(e) => setTo(e.target.value)}>
           {eligible.map((o) => (
             <option key={o.id} value={o.id}>
-              {o.name} ({ROLE[o.roleCode]})
+              {o.name} ({roleLabel(o.roleCode)})
             </option>
           ))}
         </Select>

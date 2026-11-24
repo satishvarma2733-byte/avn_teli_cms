@@ -1,6 +1,7 @@
 'use client';
 
 import { ScrollText } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import { Input, Select } from '@/components/ui/field';
 import { Alert, Badge, Card, EmptyState, Skeleton, scrollRegionProps } from '@/components/ui/primitives';
 import { useApi } from '@/lib/client';
 import { formatDateTime } from '@/lib/format';
+
+import { actionLabel, describeChanges, entityLabel, leadLink } from './describe';
 
 interface Row {
   id: string;
@@ -29,16 +32,77 @@ const GROUPS = [
   { id: 'student.', label: 'Students' },
   { id: 'lead.', label: 'Leads' },
   { id: 'followup.', label: 'Follow-ups' },
+  { id: 'note.', label: 'Notes' },
+  { id: 'document.', label: 'Documents' },
+  { id: 'folder.', label: 'Folders' },
+  { id: 'import.', label: 'Imports' },
+  { id: 'export.', label: 'Exports' },
   { id: 'web_lead.', label: 'Web leads' },
-  { id: 'intake_credential.', label: 'Integrations' },
+  { id: 'automation.', label: 'Automations' },
+  { id: 'intake_credential.', label: 'Website keys' },
+  { id: 'source.', label: 'Lead sources' },
   { id: 'settings.', label: 'Settings' },
-  { id: 'impersonation.', label: 'Impersonation' },
+  { id: 'impersonation.', label: 'Support access' },
 ];
 
-function summarize(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  const s = JSON.stringify(v);
-  return s.length > 160 ? `${s.slice(0, 160)}…` : s;
+const hasValue = (v: unknown) => v !== null && v !== undefined;
+
+function RecordLinks({ row, onFilter }: { row: Row; onFilter: (id: string) => void }) {
+  const href = leadLink(row);
+  if (!row.entityId && !href) return null;
+  return (
+    <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+      {href && (
+        <Link href={href} className="text-primary hover:underline">
+          Open student
+        </Link>
+      )}
+      {row.entityId && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground hover:underline"
+          title={row.entityId}
+          onClick={() => onFilter(row.entityId!)}
+        >
+          Only this record
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ChangeSummary({ row }: { row: Row }) {
+  const lines = describeChanges(row.oldValue, row.newValue);
+  const raw = hasValue(row.oldValue) || hasValue(row.newValue);
+  if (!raw) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="space-y-1">
+      {lines.length > 0 && (
+        <ul className="space-y-0.5">
+          {lines.map((l) => (
+            <li key={l.field}>
+              <span className="text-muted-foreground">{l.field}: </span>
+              {l.from !== undefined && (
+                <>
+                  <span className="text-muted-foreground line-through decoration-muted-foreground/50">
+                    {l.from}
+                  </span>
+                  {l.to !== undefined && <span aria-label="changed to"> → </span>}
+                </>
+              )}
+              {l.to !== undefined && <span>{l.to}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <details className="text-muted-foreground">
+        <summary className="cursor-pointer select-none hover:text-foreground">Raw details</summary>
+        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-surface-muted p-2 font-mono text-[11px]">
+          {JSON.stringify({ before: row.oldValue ?? null, after: row.newValue ?? null }, null, 2)}
+        </pre>
+      </details>
+    </div>
+  );
 }
 
 export function AuditTable() {
@@ -90,6 +154,11 @@ export function AuditTable() {
           onChange={(e) => setEntityId(e.target.value)}
           className="w-80"
         />
+        {entityId && (
+          <Button size="sm" variant="ghost" onClick={() => setEntityId('')}>
+            Show all records
+          </Button>
+        )}
       </div>
       {error && <Alert tone="danger">{error}</Alert>}
       <Card>
@@ -123,27 +192,21 @@ export function AuditTable() {
                       {r.actorName}
                       {r.impersonatedBy && (
                         <div>
-                          <Badge tone="warning">impersonated</Badge>
+                          <Badge tone="warning">Support access · {r.impersonatedBy}</Badge>
                         </div>
                       )}
                       {r.ip && <div className="text-xs text-muted-foreground">{r.ip}</div>}
                     </td>
                     <td className="px-4 py-2.5">
-                      <code className="text-xs">{r.action}</code>
+                      <div className="font-medium">{actionLabel(r.action)}</div>
+                      <code className="text-xs text-muted-foreground">{r.action}</code>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {r.entityType}
-                      {r.entityId && <div className="break-all">{r.entityId}</div>}
+                    <td className="px-4 py-2.5 text-xs">
+                      <div>{entityLabel(r.entityType)}</div>
+                      <RecordLinks row={r} onFilter={setEntityId} />
                     </td>
                     <td className="max-w-md px-4 py-2.5 text-xs">
-                      {r.oldValue !== null && r.oldValue !== undefined && (
-                        <div className="break-all text-muted-foreground line-through decoration-muted-foreground/50">
-                          {summarize(r.oldValue)}
-                        </div>
-                      )}
-                      {r.newValue !== null && r.newValue !== undefined && (
-                        <div className="break-all">{summarize(r.newValue)}</div>
-                      )}
+                      <ChangeSummary row={r} />
                     </td>
                   </tr>
                 ))}
